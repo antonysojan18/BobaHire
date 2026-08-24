@@ -84,7 +84,7 @@ export default function AdminDashboard() {
   // Status Action Confirmation Modal State
   const [confirmAction, setConfirmAction] = useState<{
     candidate: Candidate;
-    action: 'Shortlist' | 'Reject';
+    action: 'Shortlist' | 'Reject' | 'Delete';
   } | null>(null);
   const [actionProcessing, setActionProcessing] = useState<boolean>(false);
 
@@ -182,6 +182,23 @@ export default function AdminDashboard() {
 
     setActionProcessing(true);
     const { candidate, action } = confirmAction;
+
+    if (action === 'Delete') {
+      setCandidates((prev) => prev.filter((c) => c.id !== candidate.id));
+      const { error } = await supabase
+        .from('candidates')
+        .delete()
+        .eq('id', candidate.id);
+
+      if (error) {
+        console.error('Error deleting candidate:', error);
+        fetchCandidates();
+      }
+      setActionProcessing(false);
+      setConfirmAction(null);
+      return;
+    }
+
     const dbStatus = action === 'Shortlist' ? 'shortlisted' : 'rejected';
 
     // Optimistic UI update
@@ -470,23 +487,8 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
     }
   };
 
-  const handleDeleteCandidate = async (candidate: Candidate) => {
-    if (!confirm(`Are you sure you want to delete ${candidate.name} from the dashboard and database?`)) {
-      return;
-    }
-
-    setCandidates((prev) => prev.filter((c) => c.id !== candidate.id));
-
-    const { error } = await supabase
-      .from('candidates')
-      .delete()
-      .eq('id', candidate.id);
-
-    if (error) {
-      console.error('Error deleting candidate:', error);
-      alert(`Failed to delete candidate from database: ${error.message}`);
-      fetchCandidates();
-    }
+  const handleDeleteCandidate = (candidate: Candidate) => {
+    setConfirmAction({ candidate, action: 'Delete' });
   };
 
   // Interactive Calendar State
@@ -1239,11 +1241,11 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                             <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
                           </button>
 
-                          {/* Cross Button: Automatically deletes candidate from dashboard & DB */}
+                          {/* Cross Button: Prompts deletion modal without blocking UI thread */}
                           <button
                             type="button"
                             title="Delete candidate from dashboard & database"
-                            onClick={() => handleDeleteCandidate(c)}
+                            onClick={() => setConfirmAction({ candidate: c, action: 'Delete' })}
                             className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer transition-colors"
                           >
                             <X className="h-4 w-4 text-rose-600 stroke-[3]" />
@@ -1315,7 +1317,11 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
             <div className="flex justify-between items-start border-b border-border pb-3">
               <div>
                 <h3 className="font-display text-lg font-bold text-foreground">
-                  {confirmAction.action === 'Shortlist' ? 'Confirm Shortlist' : 'Confirm Rejection'}
+                  {confirmAction.action === 'Shortlist'
+                    ? 'Confirm Shortlist'
+                    : confirmAction.action === 'Reject'
+                    ? 'Confirm Rejection'
+                    : 'Confirm Delete Candidate'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Candidate: <strong className="text-foreground">{confirmAction.candidate.name}</strong> ({confirmAction.candidate.role})
@@ -1333,7 +1339,9 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
             <p className="text-sm text-muted-foreground">
               {confirmAction.action === 'Shortlist'
                 ? `${confirmAction.candidate.name} will be marked as Shortlisted and a congratulatory email will be sent to ${confirmAction.candidate.email}.`
-                : `${confirmAction.candidate.name} will be marked as Rejected and a polite, encouraging status update will be sent to ${confirmAction.candidate.email}.`}
+                : confirmAction.action === 'Reject'
+                ? `${confirmAction.candidate.name} will be marked as Rejected and a polite, encouraging status update will be sent to ${confirmAction.candidate.email}.`
+                : `Are you sure you want to permanently remove ${confirmAction.candidate.name} from the candidate dashboard and database? This action cannot be undone.`}
             </p>
 
             <div className="flex justify-end space-x-2 pt-2">
@@ -1348,9 +1356,17 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                 type="button"
                 onClick={handleConfirmStatusChange}
                 disabled={actionProcessing}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer ${
+                  confirmAction.action === 'Delete'
+                    ? 'bg-rose-600 text-white hover:bg-rose-700'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                }`}
               >
-                {actionProcessing ? 'Processing...' : 'Confirm & Send Email'}
+                {actionProcessing
+                  ? 'Processing...'
+                  : confirmAction.action === 'Delete'
+                  ? 'Delete Candidate'
+                  : 'Confirm & Send Email'}
               </button>
             </div>
           </div>
