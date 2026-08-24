@@ -1,26 +1,157 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-brand: var(--font-brand), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --shadow-panel: 0 2px 8px -2px rgba(165, 56, 97, 0.08), 0 12px 24px -12px rgba(95, 127, 122, 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+.font-brand {
+  font-family: var(--font-brand), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@keyframes boba-float {
+  0%,
+  100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-22px) scale(1.05);
   }
 }
 
+.animate-boba-float {
+  animation: boba-float 12s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Animated Checkmark Tick Animations */
+@keyframes checkmark-stroke {
+  0% {
+    stroke-dashoffset: 48;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes checkmark-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-checkmark-stroke {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: checkmark-stroke 0.5s cubic-bezier(0.65, 0, 0.45, 1) 0.2s forwards;
+}
+
+.animate-checkmark-pop {
+  animation: checkmark-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+:root {
+  --radius: 0.875rem;
+  
+  /* User-Defined Palette */
+  --background: #fcf8f4;
+  --foreground: #2d1822;
+  --card: #ffffff;
+  --card-foreground: #2d1822;
+  --popover: #ffffff;
+  --popover-foreground: #2d1822;
+
+  --primary: #a53861;
+  --primary-foreground: #ffffff;
+
+  --secondary: #5f7f7a;
+  --secondary-foreground: #ffffff;
+
+  --accent: #f1d4af;
+  --accent-foreground: #3a1c28;
+
+  --muted: #f7ebe0;
+  --muted-foreground: #5f7f7a;
+
+  --destructive: #b93848;
+  --destructive-foreground: #ffffff;
+
+  --success: #5f7f7a;
+  --success-foreground: #ffffff;
+
+  --border: #ebd9c8;
+  --input: #ebd9c8;
+  --ring: #a53861;
+}
+
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: -0.015em;
+}
+
+/* Custom sleek scrollbar for horizontal table scrolling */
+::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f7ebe0;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4bda8;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a53861;
 }
