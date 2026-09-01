@@ -186,6 +186,8 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           name: candidate.name,
           email: candidate.email,
+          phone: candidate.phone || '',
+          location: candidate.location || '',
           role: candidate.role,
           action,
           interviewDateTime: dateTime || '',
