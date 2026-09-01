@@ -510,7 +510,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
     setConfirmAction({ candidate, action: 'Delete' });
   };
 
-  // Interactive Calendar State
+  // Interactive Calendar & Manual Time State
   const [calendarViewDate, setCalendarViewDate] = useState<Date>(new Date());
   const [selectedInterviewDate, setSelectedInterviewDate] = useState<Date>(() => {
     const d = new Date();
@@ -518,22 +518,51 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
     return d;
   });
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('10:00 AM');
+  const [rawTimeInput, setRawTimeInput] = useState<string>('10:00');
 
-  const updateInterviewSchedule = (dayObj: Date, timeSlotStr: string) => {
+  const format24to12 = (time24: string): string => {
+    if (!time24) return '10:00 AM';
+    const [hStr, mStr = '00'] = time24.split(':');
+    let h = parseInt(hStr, 10);
+    if (isNaN(h)) return '10:00 AM';
+    const modifier = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${String(h12).padStart(2, '0')}:${mStr.padStart(2, '0')} ${modifier}`;
+  };
+
+  const format12to24 = (time12: string): string => {
+    if (!time12) return '10:00';
+    const parts = time12.trim().split(' ');
+    const modifier = parts[1] || 'AM';
+    const [hStr, mStr = '00'] = (parts[0] || '10:00').split(':');
+    let h = parseInt(hStr, 10);
+    if (isNaN(h)) h = 10;
+    if (modifier.toUpperCase() === 'PM' && h < 12) h += 12;
+    if (modifier.toUpperCase() === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${mStr.padStart(2, '0')}`;
+  };
+
+  const updateInterviewSchedule = (dayObj: Date, timeInput: string, is24h = false) => {
     setSelectedInterviewDate(dayObj);
-    setSelectedTimeSlot(timeSlotStr);
 
-    let [time, modifier] = timeSlotStr.split(' ');
-    let [hours, minutes] = time.split(':');
-    let h = parseInt(hours, 10);
-    if (modifier === 'PM' && h < 12) h += 12;
-    if (modifier === 'AM' && h === 12) h = 0;
-    const hStr = String(h).padStart(2, '0');
+    let time24 = '10:00';
+    let display12 = '10:00 AM';
+
+    if (is24h) {
+      time24 = timeInput;
+      display12 = format24to12(timeInput);
+    } else {
+      display12 = timeInput;
+      time24 = format12to24(timeInput);
+    }
+
+    setRawTimeInput(time24);
+    setSelectedTimeSlot(display12);
 
     const year = dayObj.getFullYear();
     const month = String(dayObj.getMonth() + 1).padStart(2, '0');
     const day = String(dayObj.getDate()).padStart(2, '0');
-    setInterviewDateTime(`${year}-${month}-${day}T${hStr}:${minutes}`);
+    setInterviewDateTime(`${year}-${month}-${day}T${time24}`);
   };
 
   const triggerInterviewModal = (c: Candidate) => {
@@ -541,7 +570,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
     const initialDate = new Date();
     initialDate.setDate(initialDate.getDate() + 1);
     setCalendarViewDate(new Date(initialDate.getFullYear(), initialDate.getMonth(), 1));
-    updateInterviewSchedule(initialDate, '10:00 AM');
+    updateInterviewSchedule(initialDate, '10:00', true);
   };
 
   const formatDateSubmitted = (dateStr?: string | null) => {
@@ -1504,27 +1533,50 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                 </div>
               </div>
 
-              {/* Time Slots Selector */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5 text-primary" />
-                  <span>Select Time Slot</span>
+              {/* Manual Time Entry & Quick Presets */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="manual-interview-time" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5 text-primary" />
+                    <span>Interview Time (Manual Entry)</span>
+                  </label>
+                  <span className="text-xs font-extrabold text-[#5f7f7a] bg-[#5f7f7a]/15 px-2.5 py-0.5 rounded-full border border-[#5f7f7a]/30 shadow-2xs">
+                    {selectedTimeSlot}
+                  </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {['09:00 AM', '10:00 AM', '11:30 AM', '01:30 PM', '03:00 PM', '04:30 PM'].map((slot) => (
-                    <button
-                      key={slot}
-                      type="button"
-                      onClick={() => updateInterviewSchedule(selectedInterviewDate, slot)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
-                        selectedTimeSlot === slot
-                          ? 'bg-[#5f7f7a] text-white border-[#5f7f7a] shadow-xs'
-                          : 'bg-background border-border text-foreground hover:bg-muted cursor-pointer'
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  ))}
+
+                {/* Direct Manual Time Picker Input */}
+                <div className="relative">
+                  <input
+                    id="manual-interview-time"
+                    type="time"
+                    value={rawTimeInput}
+                    onChange={(e) => updateInterviewSchedule(selectedInterviewDate, e.target.value, true)}
+                    className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-[#5f7f7a] shadow-xs cursor-pointer"
+                  />
+                </div>
+
+                {/* Quick Presets for Speed */}
+                <div className="space-y-1.5 pt-0.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Quick Preset Shortcuts:
+                  </span>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {['09:00 AM', '10:00 AM', '11:30 AM', '01:30 PM', '03:00 PM', '04:30 PM'].map((slot) => (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => updateInterviewSchedule(selectedInterviewDate, slot, false)}
+                        className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                          selectedTimeSlot === slot
+                            ? 'bg-[#5f7f7a] text-white border-[#5f7f7a] shadow-xs'
+                            : 'bg-background border-border text-foreground hover:bg-muted cursor-pointer'
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
