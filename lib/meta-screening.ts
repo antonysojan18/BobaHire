@@ -28,6 +28,8 @@ function getFieldValue(fields: Record<string, any>, ...substrings: string[]): st
 export function evaluateMetaScreening(role: string, fields: Record<string, any>): MetaScreeningResult {
   const normalizedRoleInput = String(role || '').toLowerCase();
   const isGM = normalizedRoleInput.includes('general manager') || normalizedRoleInput.includes('gm');
+  const isBaristaOnly = normalizedRoleInput.includes('barista') && !normalizedRoleInput.includes('cafe staff');
+  const isCafeStaffOnly = normalizedRoleInput.includes('cafe staff') && !normalizedRoleInput.includes('barista');
 
   if (isGM) {
     const val5Years = getFieldValue(fields, 'at_least_5_years', '5_years', 'five_plus', 'managerial_experience');
@@ -65,9 +67,13 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any>)
     const valBrand = getFieldValue(fields, 'worked_at_any_cafe', 'worked_at_any_cafes', 'qsr_brands', 'brand_experience');
     const brandExp = valBrand.toLowerCase() === 'yes' || valBrand.toLowerCase() === 'y' || valBrand.toLowerCase() === 'true';
 
+    let assignedRole = 'Cafe Staff / Barista';
+    if (isBaristaOnly) assignedRole = 'Barista';
+    else if (isCafeStaffOnly) assignedRole = 'Cafe Staff';
+
     return {
       passed: true, // Direct processing for all leads
-      normalizedRole: 'Cafe Staff / Barista',
+      normalizedRole: assignedRole,
       questionnaire: {
         qsr_experience: hasQSR,
         experience_duration: expYears,

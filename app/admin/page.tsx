@@ -47,10 +47,27 @@ interface Candidate {
       communication_points: number;
       stability_education_points: number;
     };
+    mandatory_eligibility?: {
+      barista_training_verified?: boolean | null;
+      minimum_1_year_qsr_verified?: boolean | null;
+      coffee_experience_verified?: boolean | null;
+      bubble_tea_experience_verified?: boolean | null;
+      dual_beverage_ready?: boolean | null;
+      age_eligibility_status?: string | null;
+      overall_eligible?: boolean | null;
+      notes?: string | null;
+    };
     summary?: string;
     strengths?: string[];
     gaps?: string[];
     recommendation?: string;
+    evaluated_questions?: Array<{
+      id: number;
+      category: string;
+      question: string;
+      status: string;
+      evidence: string;
+    }>;
   } | null;
 }
 
@@ -93,6 +110,8 @@ export default function AdminDashboard() {
     candidate: Candidate;
     type: 'breakdown' | 'pdf';
   } | null>(null);
+  const [criteriaCategoryFilter, setCriteriaCategoryFilter] = useState<string>('all');
+  const [criteriaSearchQuery, setCriteriaSearchQuery] = useState<string>('');
 
   // Lead Dispatch Form State
   const [form, setForm] = useState({
@@ -1550,22 +1569,22 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
       {/* SEPARATE MODAL 1: Dedicated AI Points Breakdown Modal */}
       {activeModal?.type === 'breakdown' && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-card rounded-xl border border-border max-w-2xl w-full p-6 space-y-5 shadow-2xl my-8">
+          <div className="bg-card rounded-2xl border border-border max-w-4xl w-full p-6 sm:p-7 space-y-5 shadow-2xl my-8 max-h-[92vh] flex flex-col">
             {/* Modal Header */}
-            <div className="flex justify-between items-start border-b border-border pb-4">
+            <div className="flex justify-between items-start border-b border-border pb-4 shrink-0">
               <div>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <h3 className="font-display text-xl font-bold text-foreground">{activeModal.candidate.name}</h3>
                   {renderStatusBadge(activeModal.candidate.status)}
-                  {/* Role Badge: Cafe Staff vs. General Manager */}
+                  {/* Role Badge */}
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${
                     activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm')
                       ? 'bg-purple-100 text-purple-800 border-purple-300'
+                      : activeModal.candidate.role.toLowerCase().includes('barista')
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                       : 'bg-amber-100 text-amber-800 border-amber-300'
                   }`}>
-                    {activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm')
-                      ? 'General Manager'
-                      : 'Cafe Staff / Barista'}
+                    {activeModal.candidate.role}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -1574,17 +1593,21 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
               </div>
               <button
                 type="button"
-                onClick={() => setActiveModal(null)}
-                className="text-muted-foreground hover:text-foreground text-xl font-bold p-1 rounded-lg"
+                onClick={() => {
+                  setActiveModal(null);
+                  setCriteriaCategoryFilter('all');
+                  setCriteriaSearchQuery('');
+                }}
+                className="text-muted-foreground hover:text-foreground text-xl font-bold p-1 rounded-lg transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-display text-base font-bold text-foreground">
-                  📊 AI Points Breakdown & Verification
+            <div className="space-y-5 overflow-y-auto pr-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="font-display text-base font-bold text-foreground flex items-center gap-2">
+                  <span>📊</span> AI Evaluation & Verification Report
                 </h4>
                 {/* Verification Indicator */}
                 {activeModal.candidate.ai_evaluation && (
@@ -1607,9 +1630,9 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                     <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">📋 Lead Form Self-Reported Answers</h5>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded">Meta Lead Ad</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                     {Object.entries(activeModal.candidate.questionnaire_data).map(([key, val]) => (
-                      <div key={key} className="bg-card p-2 rounded-lg border border-border/60">
+                      <div key={key} className="bg-card p-2.5 rounded-lg border border-border/60">
                         <span className="font-semibold text-muted-foreground capitalize">{key.replace(/_/g, ' ')}: </span>
                         <strong className="text-foreground">{typeof val === 'boolean' ? (val ? 'Yes' : 'No') : String(val)}</strong>
                       </div>
@@ -1625,71 +1648,290 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                     {[
                       { label: 'Experience', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 35 : 40 },
                       { label: 'Core Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 25 : 30 },
-                      { label: 'Communication', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                      { label: 'Communication', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 20 : 15 },
                       { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 20 : 15 },
                     ].map((item) => (
-                      <div key={item.label} className="rounded-lg border border-border bg-muted/40 p-3">
+                      <div key={item.label} className="rounded-xl border border-border bg-muted/40 p-3.5">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                        <p className="mt-1 font-display text-xl font-bold text-foreground">
+                        <p className="mt-1 font-display text-2xl font-black text-foreground">
                           {item.score}
                           <span className="text-xs font-medium text-muted-foreground">/{item.max}</span>
                         </p>
-                        <div className="mt-2 h-1.5 w-full rounded-full bg-border">
+                        <div className="mt-2 h-2 w-full rounded-full bg-border overflow-hidden">
                           <div
-                            className="h-1.5 rounded-full bg-primary"
-                            style={{ width: `${(item.score / item.max) * 100}%` }}
+                            className="h-2 rounded-full bg-primary transition-all duration-500"
+                            style={{ width: `${Math.min(100, (item.score / item.max) * 100)}%` }}
                           />
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Total Score */}
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+                  {/* Total Score Banner */}
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-card p-4 shadow-xs">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total AI Evaluation Score</p>
-                      <p className="font-display text-3xl font-bold text-foreground">{activeModal.candidate.ai_score ?? 0}/100</p>
+                      <p className="font-display text-3xl font-black text-foreground">{activeModal.candidate.ai_score ?? 0}<span className="text-sm font-semibold text-muted-foreground"> / 100</span></p>
                     </div>
                     {activeModal.candidate.ai_evaluation.recommendation && (
-                      <div className="text-sm font-bold text-primary">
-                        {activeModal.candidate.ai_evaluation.recommendation}
+                      <div className="text-right">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block mb-0.5">Recommendation</span>
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold border ${
+                          activeModal.candidate.ai_evaluation.recommendation.includes('Strongly')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : activeModal.candidate.ai_evaluation.recommendation.includes('Recommended')
+                            ? 'bg-blue-100 text-blue-900 border-blue-300'
+                            : 'bg-rose-100 text-rose-900 border-rose-300'
+                        }`}>
+                          {activeModal.candidate.ai_evaluation.recommendation}
+                        </span>
                       </div>
                     )}
                   </div>
 
+                  {/* Mandatory Eligibility Card (if available) */}
+                  {activeModal.candidate.ai_evaluation.mandatory_eligibility && (
+                    <div className="rounded-xl border border-[#ebd9c8] bg-[#f7ebe0]/50 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-[#2d1822] flex items-center gap-1.5">
+                          <span>✅</span> Mandatory Role Eligibility Verification
+                        </h5>
+                        <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border ${
+                          activeModal.candidate.ai_evaluation.mandatory_eligibility.overall_eligible
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                        }`}>
+                          {activeModal.candidate.ai_evaluation.mandatory_eligibility.overall_eligible ? 'Eligible' : 'Eligibility Gap Noted'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.barista_training_verified !== undefined &&
+                          activeModal.candidate.ai_evaluation.mandatory_eligibility.barista_training_verified !== null && (
+                            <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                              <span className="text-muted-foreground font-medium">Barista Training:</span>
+                              <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.barista_training_verified ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                {activeModal.candidate.ai_evaluation.mandatory_eligibility.barista_training_verified ? '✓ Verified' : '✕ Not Verified'}
+                              </span>
+                            </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_1_year_qsr_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Min 1 Yr QSR:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_1_year_qsr_verified ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_1_year_qsr_verified ? '✓ Verified' : '✕ Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.coffee_experience_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Coffee Prep:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.coffee_experience_verified ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.coffee_experience_verified ? '✓ Verified' : 'Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.bubble_tea_experience_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Bubble Tea Prep:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.bubble_tea_experience_verified ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.bubble_tea_experience_verified ? '✓ Verified' : 'Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.dual_beverage_ready !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Dual Beverage:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.dual_beverage_ready ? 'text-emerald-700' : 'text-amber-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.dual_beverage_ready ? '✓ Demonstrated' : 'Partial'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.age_eligibility_status && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Age Pref (18-30):</span>
+                            <span className="font-semibold text-foreground">
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.age_eligibility_status}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {activeModal.candidate.ai_evaluation.mandatory_eligibility.notes && (
+                        <p className="text-[11px] text-muted-foreground italic border-t border-[#ebd9c8]/70 pt-2">
+                          Note: {activeModal.candidate.ai_evaluation.mandatory_eligibility.notes}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* AI Audit Summary */}
                   <div>
                     <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">AI Audit Summary</h5>
-                    <p className="text-xs leading-relaxed text-foreground bg-muted/30 p-3 rounded-lg border border-border">
+                    <p className="text-xs leading-relaxed text-foreground bg-muted/30 p-3.5 rounded-xl border border-border">
                       {activeModal.candidate.ai_evaluation.summary || 'No evaluation summary available.'}
                     </p>
                   </div>
 
                   {/* Strengths & Gaps */}
                   <div className="grid gap-3 sm:grid-cols-2 text-xs">
-                    <div>
-                      <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Key Strengths</h5>
-                      <ul className="space-y-1">
-                        {activeModal.candidate.ai_evaluation.strengths?.map((s, i) => (
-                          <li key={i} className="flex items-center gap-1.5 text-foreground">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
-                            <span>{s}</span>
-                          </li>
-                        ))}
+                    <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/40 p-3.5">
+                      <h5 className="text-xs font-bold uppercase tracking-wide text-emerald-900 mb-2 flex items-center gap-1.5">
+                        <span>✨</span> Key Strengths
+                      </h5>
+                      <ul className="space-y-1.5">
+                        {activeModal.candidate.ai_evaluation.strengths && activeModal.candidate.ai_evaluation.strengths.length > 0 ? (
+                          activeModal.candidate.ai_evaluation.strengths.map((s, i) => (
+                            <li key={i} className="flex items-start gap-1.5 text-emerald-950">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0 mt-1.5" />
+                              <span>{s}</span>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="text-muted-foreground">None identified.</li>
+                        )}
                       </ul>
                     </div>
-                    <div>
-                      <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Identified Gaps</h5>
-                      <ul className="space-y-1">
-                        {activeModal.candidate.ai_evaluation.gaps?.map((g, i) => (
-                          <li key={i} className="flex items-center gap-1.5 text-foreground">
-                            <span className="h-1.5 w-1.5 rounded-full bg-rose-600 shrink-0" />
-                            <span>{g}</span>
-                          </li>
-                        ))}
+                    <div className="rounded-xl border border-rose-200/60 bg-rose-50/40 p-3.5">
+                      <h5 className="text-xs font-bold uppercase tracking-wide text-rose-900 mb-2 flex items-center gap-1.5">
+                        <span>⚠️</span> Identified Gaps & Risks
+                      </h5>
+                      <ul className="space-y-1.5">
+                        {activeModal.candidate.ai_evaluation.gaps && activeModal.candidate.ai_evaluation.gaps.length > 0 ? (
+                          activeModal.candidate.ai_evaluation.gaps.map((g, i) => (
+                            <li key={i} className="flex items-start gap-1.5 text-rose-950">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-600 shrink-0 mt-1.5" />
+                              <span>{g}</span>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="text-muted-foreground">No significant gaps detected.</li>
+                        )}
                       </ul>
                     </div>
                   </div>
+
+                  {/* 35 Detailed Criteria Questions Deep Dive */}
+                  {activeModal.candidate.ai_evaluation.evaluated_questions &&
+                    activeModal.candidate.ai_evaluation.evaluated_questions.length > 0 && (
+                      <div className="rounded-2xl border border-border bg-card p-4 space-y-3.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                          <div>
+                            <h5 className="font-display text-sm font-bold text-foreground flex items-center gap-1.5">
+                              <span>📋</span> Professional Criteria Evaluation ({activeModal.candidate.ai_evaluation.evaluated_questions.length} Points)
+                            </h5>
+                            <p className="text-[11px] text-muted-foreground">
+                              Direct & indirect evidence extracted from the candidate's CV for each criterion.
+                            </p>
+                          </div>
+                          
+                          {/* Search criteria */}
+                          <div className="relative w-full sm:w-56">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <input
+                              type="text"
+                              value={criteriaSearchQuery}
+                              onChange={(e) => setCriteriaSearchQuery(e.target.value)}
+                              placeholder="Search criteria or evidence..."
+                              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Category filter pills */}
+                        {(() => {
+                          const categories = Array.from(
+                            new Set(activeModal.candidate.ai_evaluation.evaluated_questions.map((q) => q.category))
+                          );
+                          return (
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setCriteriaCategoryFilter('all')}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${
+                                  criteriaCategoryFilter === 'all'
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted'
+                                }`}
+                              >
+                                All ({activeModal.candidate.ai_evaluation.evaluated_questions.length})
+                              </button>
+                              {categories.map((cat) => {
+                                const count = activeModal.candidate.ai_evaluation!.evaluated_questions!.filter((q) => q.category === cat).length;
+                                return (
+                                  <button
+                                    key={cat}
+                                    type="button"
+                                    onClick={() => setCriteriaCategoryFilter(cat)}
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${
+                                      criteriaCategoryFilter === cat
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted'
+                                    }`}
+                                  >
+                                    {cat} ({count})
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Questions List */}
+                        <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                          {activeModal.candidate.ai_evaluation.evaluated_questions
+                            .filter((q) => {
+                              const matchCat = criteriaCategoryFilter === 'all' || q.category === criteriaCategoryFilter;
+                              const qSearch = criteriaSearchQuery.trim().toLowerCase();
+                              const matchQuery =
+                                !qSearch ||
+                                q.question.toLowerCase().includes(qSearch) ||
+                                q.evidence.toLowerCase().includes(qSearch) ||
+                                q.status.toLowerCase().includes(qSearch);
+                              return matchCat && matchQuery;
+                            })
+                            .map((item, idx) => {
+                              const isDirect = item.status?.toLowerCase().includes('direct');
+                              const isIndirect = item.status?.toLowerCase().includes('indirect');
+                              const isGap = item.status?.toLowerCase().includes('gap') || item.status?.toLowerCase().includes('risk');
+                              
+                              return (
+                                <div
+                                  key={idx}
+                                  className="rounded-xl border border-border/80 bg-muted/20 p-3 text-xs space-y-1.5 hover:bg-muted/40 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono font-bold text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                                        #{item.id ?? idx + 1}
+                                      </span>
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-card px-2 py-0.5 rounded border border-border/60">
+                                        {item.category}
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 ${
+                                        isDirect
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                          : isIndirect
+                                          ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                          : isGap
+                                          ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                          : 'bg-slate-100 text-slate-700 border-slate-300'
+                                      }`}
+                                    >
+                                      {item.status || 'Evaluated'}
+                                    </span>
+                                  </div>
+                                  <p className="font-semibold text-foreground leading-snug">{item.question}</p>
+                                  <div className="bg-card p-2 rounded-lg border border-border/70 text-muted-foreground text-[11px] leading-relaxed">
+                                    <span className="font-bold text-foreground">CV Evidence: </span>
+                                    {item.evidence || 'No direct evidence found in CV.'}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
                 </>
               ) : (
                 <div className="py-12 text-center text-xs text-muted-foreground">
@@ -1698,11 +1940,15 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
               )}
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-3 flex justify-end border-t border-border shrink-0">
               <button
                 type="button"
-                onClick={() => setActiveModal(null)}
-                className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 cursor-pointer"
+                onClick={() => {
+                  setActiveModal(null);
+                  setCriteriaCategoryFilter('all');
+                  setCriteriaSearchQuery('');
+                }}
+                className="rounded-xl bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 cursor-pointer shadow-xs"
               >
                 Close
               </button>
