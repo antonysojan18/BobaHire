@@ -94,6 +94,7 @@ export async function POST(req: Request) {
 
     const gmailUser = process.env.GMAIL_USER || 'resume.ai2026@gmail.com';
     const gmailPass = process.env.GMAIL_APP_PASSWORD;
+    const hrNotificationEmail = process.env.HR_NOTIFICATION_EMAIL || process.env.HR_EMAIL || gmailUser;
 
     let subject = '';
     let htmlContent = '';
@@ -287,7 +288,7 @@ export async function POST(req: Request) {
 
           await transporter.sendMail({
             from: `"BobaLive Recruitment" <${gmailUser}>`,
-            to: gmailUser,
+            to: hrNotificationEmail,
             subject: hrSubject,
             html: hrHtml,
             icalEvent: {
