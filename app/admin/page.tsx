@@ -15,9 +15,12 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Loader2,
+  RefreshCw,
   Search,
   Send,
   SlidersHorizontal,
+  Sparkles,
   Upload,
   X,
   XCircle,
@@ -122,6 +125,10 @@ export default function AdminDashboard() {
     location: '',
   });
 
+  // AI Evaluation in progress state
+  const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
+  const [batchEvaluating, setBatchEvaluating] = useState<boolean>(false);
+
   const fetchCandidates = async () => {
     const { data, error } = await supabase
       .from('candidates')
@@ -133,6 +140,64 @@ export default function AdminDashboard() {
     } else if (data) {
       setCandidates(data as Candidate[]);
     }
+  };
+
+  const handleEvaluateCandidate = async (candidate: Candidate) => {
+    if (!candidate.resume_url) {
+      alert('This candidate has not uploaded a resume yet.');
+      return;
+    }
+    setEvaluatingId(candidate.id);
+    try {
+      const res = await fetch('/api/evaluate-resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: candidate.id,
+          resumeUrl: candidate.resume_url,
+          role: candidate.role,
+          questionnaire: candidate.questionnaire_data,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Evaluation failed');
+      await fetchCandidates();
+    } catch (err: any) {
+      alert(`AI Evaluation Error: ${err.message}`);
+    } finally {
+      setEvaluatingId(null);
+    }
+  };
+
+  const handleBatchEvaluatePending = async () => {
+    const toEvaluate = candidates.filter((c) => c.resume_url && (c.ai_score === null || !c.ai_evaluation));
+    if (toEvaluate.length === 0) {
+      alert('No unevaluated candidates with uploaded resumes found.');
+      return;
+    }
+
+    setBatchEvaluating(true);
+    let successCount = 0;
+    for (const c of toEvaluate) {
+      try {
+        const res = await fetch('/api/evaluate-resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateId: c.id,
+            resumeUrl: c.resume_url,
+            role: c.role,
+            questionnaire: c.questionnaire_data,
+          }),
+        });
+        if (res.ok) successCount++;
+      } catch (e) {
+        console.error('Batch eval error for', c.name, e);
+      }
+    }
+    await fetchCandidates();
+    setBatchEvaluating(false);
+    alert(`Successfully evaluated ${successCount} of ${toEvaluate.length} candidates!`);
   };
 
   useEffect(() => {
@@ -1157,9 +1222,26 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
         <section className="rounded-xl border border-border bg-card shadow-panel overflow-hidden">
           <div className="flex items-center justify-between border-b border-[#4d6a65] bg-[#5f7f7a] px-6 py-4 text-white">
             <h2 className="font-display text-lg font-bold text-white tracking-tight">Candidate Leaderboard</h2>
-            <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white backdrop-blur-xs">
-              {rows.length} records
-            </span>
+            <div className="flex items-center gap-3">
+              {candidates.some((c) => c.resume_url && (c.ai_score === null || !c.ai_evaluation)) && (
+                <button
+                  type="button"
+                  disabled={batchEvaluating}
+                  onClick={handleBatchEvaluatePending}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1 text-xs font-bold text-white backdrop-blur-xs transition-colors cursor-pointer"
+                >
+                  {batchEvaluating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  Evaluate All Pending Resumes
+                </button>
+              )}
+              <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white backdrop-blur-xs">
+                {rows.length} records
+              </span>
+            </div>
           </div>
 
           <div className="overflow-x-auto w-full pb-2">
@@ -1262,6 +1344,20 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                           >
                             <XCircle className="mr-1 h-3.5 w-3.5 text-rose-600" />
                             Reject
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!c.resume_url || evaluatingId === c.id}
+                            onClick={() => handleEvaluateCandidate(c)}
+                            title={c.ai_score !== null ? 'Re-run AI Evaluation' : 'Run AI Evaluation'}
+                            className="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-[#a53861] bg-[#a53861]/10 hover:bg-[#a53861]/20 disabled:opacity-40 cursor-pointer transition-colors"
+                          >
+                            {evaluatingId === c.id ? (
+                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin text-[#a53861]" />
+                            ) : (
+                              <Sparkles className="mr-1 h-3.5 w-3.5 text-[#a53861]" />
+                            )}
+                            {c.ai_score !== null ? 'Re-evaluate' : 'Evaluate AI'}
                           </button>
                           <button
                             type="button"

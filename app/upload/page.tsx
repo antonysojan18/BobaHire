@@ -115,20 +115,35 @@ function UploadForm() {
 
       const resumeUrl = urlData.publicUrl;
 
-      // 2. Trigger AI evaluation in background (async non-blocking)
-      fetch('/api/evaluate-resume', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidateId,
-          resumeUrl,
-          role: roleTitle,
-        }),
-      }).catch((bgErr) => {
-        console.error('Background AI Evaluation Error:', bgErr);
-      });
+      // 2. Immediately associate resume_url with candidate record
+      await supabase
+        .from('candidates')
+        .update({
+          resume_url: resumeUrl,
+          status: 'reviewed',
+        })
+        .eq('id', candidateId);
 
-      // 3. Immediately mark as done and show animated tick success view
+      // 3. Trigger and await AI evaluation
+      try {
+        const evalRes = await fetch('/api/evaluate-resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateId,
+            resumeUrl,
+            role: roleTitle,
+          }),
+        });
+        if (!evalRes.ok) {
+          const errData = await evalRes.json().catch(() => ({}));
+          console.warn('AI evaluation warning:', errData.error || evalRes.statusText);
+        }
+      } catch (evalErr) {
+        console.error('AI evaluation request failed:', evalErr);
+      }
+
+      // 4. Mark as done and show animated tick success view
       setDone(true);
     } catch (err: any) {
       console.error('Upload Error:', err);

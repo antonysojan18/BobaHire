@@ -21,7 +21,7 @@ const baseURL = isGroq
 const aiModel = isGroq
   ? 'llama-3.3-70b-versatile'
   : isGemini
-  ? 'gemini-2.0-flash'
+  ? (process.env.GEMINI_MODEL || 'gemini-3.6-flash')
   : 'gpt-4o-mini';
 
 const openai = new OpenAI({ apiKey: apiKey || 'dummy-key', baseURL });
