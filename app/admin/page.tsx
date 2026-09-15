@@ -16,6 +16,7 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  MessageSquare,
   RefreshCw,
   Search,
   Send,
@@ -101,6 +102,12 @@ export default function AdminDashboard() {
   const [interviewDateTime, setInterviewDateTime] = useState<string>('');
   const [sendingEmail, setSendingEmail] = useState<boolean>(false);
 
+  // Custom Message Modal State
+  const [messageCandidate, setMessageCandidate] = useState<Candidate | null>(null);
+  const [customSubject, setCustomSubject] = useState<string>('');
+  const [customMessage, setCustomMessage] = useState<string>('');
+  const [sendingCustomMessage, setSendingCustomMessage] = useState<boolean>(false);
+
   // Status Action Confirmation Modal State
   const [confirmAction, setConfirmAction] = useState<{
     candidate: Candidate;
@@ -178,6 +185,7 @@ export default function AdminDashboard() {
 
     setBatchEvaluating(true);
     let successCount = 0;
+
     for (const c of toEvaluate) {
       try {
         const res = await fetch('/api/evaluate-resume', {
@@ -192,12 +200,58 @@ export default function AdminDashboard() {
         });
         if (res.ok) successCount++;
       } catch (e) {
-        console.error('Batch eval error for', c.name, e);
+        console.error(`Failed to evaluate candidate ${c.id}:`, e);
       }
     }
-    await fetchCandidates();
+
     setBatchEvaluating(false);
+    fetchCandidates();
     alert(`Successfully evaluated ${successCount} of ${toEvaluate.length} candidates!`);
+  };
+
+  const openMessageModal = (candidate: Candidate) => {
+    setMessageCandidate(candidate);
+    setCustomSubject(`Update regarding your application for ${candidate.role} at BobaLive`);
+    setCustomMessage(
+      `Hello ${candidate.name},\n\nWe are reviewing candidate applications for the ${candidate.role} role at BobaLive.\n\n`
+    );
+  };
+
+  const handleSendCustomMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageCandidate || !customMessage.trim()) return;
+
+    setSendingCustomMessage(true);
+    try {
+      const res = await fetch('/api/send-status-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: messageCandidate.name,
+          email: messageCandidate.email,
+          phone: messageCandidate.phone || '',
+          location: messageCandidate.location || '',
+          role: messageCandidate.role,
+          action: 'custom',
+          customSubject: customSubject.trim() || `Update regarding your application for ${messageCandidate.role} at BobaLive`,
+          customMessage: customMessage.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send message');
+      }
+
+      alert(`Custom message successfully sent to ${messageCandidate.name} (${messageCandidate.email})!`);
+      setMessageCandidate(null);
+      setCustomSubject('');
+      setCustomMessage('');
+    } catch (err: any) {
+      alert(`Error sending message: ${err.message}`);
+    } finally {
+      setSendingCustomMessage(false);
+    }
   };
 
   useEffect(() => {
@@ -1347,17 +1401,12 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                           </button>
                           <button
                             type="button"
-                            disabled={!c.resume_url || evaluatingId === c.id}
-                            onClick={() => handleEvaluateCandidate(c)}
-                            title={c.ai_score !== null ? 'Re-run AI Evaluation' : 'Run AI Evaluation'}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-[#a53861] bg-[#a53861]/10 hover:bg-[#a53861]/20 disabled:opacity-40 cursor-pointer transition-colors"
+                            title={`Send custom message to ${c.name}`}
+                            onClick={() => openMessageModal(c)}
+                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 cursor-pointer transition-colors"
                           >
-                            {evaluatingId === c.id ? (
-                              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin text-[#a53861]" />
-                            ) : (
-                              <Sparkles className="mr-1 h-3.5 w-3.5 text-[#a53861]" />
-                            )}
-                            {c.ai_score !== null ? 'Re-evaluate' : 'Evaluate AI'}
+                            <MessageSquare className="mr-1 h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                            Message
                           </button>
                           <button
                             type="button"
@@ -1678,24 +1727,29 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                 </div>
               </div>
 
-              {/* Selection Summary Box */}
-              <div className="rounded-xl border border-[#ebd9c8] bg-[#f7ebe0]/60 p-4 flex items-center gap-3.5 shadow-xs">
-                <div className="h-11 w-11 shrink-0 rounded-xl bg-[#a53861]/15 flex items-center justify-center text-[#a53861]">
-                  <Calendar className="h-6 w-6" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Confirmed Schedule</p>
-                  <p className="text-sm font-extrabold text-foreground truncate">
-                    {selectedInterviewDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {selectedTimeSlot}
-                  </p>
-                </div>
+              {/* Time Zone and Confirmation Notice */}
+              <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-1">
+                <p className="text-xs text-foreground font-semibold flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  Scheduled Date & Time
+                </p>
+                <p className="text-sm font-bold text-primary">
+                  {interviewDateTime ? new Date(interviewDateTime).toLocaleString('en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                  }) : 'Please pick a valid date & time'}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  An official BobaLive Google Calendar (.ics) invite will be sent directly to {interviewCandidate.email}.
+                </p>
               </div>
 
-              <p className="text-xs text-muted-foreground">
-                An official interview invitation email with this scheduled date & time will be sent to <strong className="text-foreground">{interviewCandidate.email}</strong>.
-              </p>
-
-              <div className="flex justify-end space-x-2 pt-2">
+              <div className="flex justify-end space-x-2 pt-2 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setInterviewCandidate(null)}
@@ -1709,6 +1763,144 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                   className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {sendingEmail ? 'Sending Invitation...' : 'Send Invitation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Message to Applicant Modal */}
+      {messageCandidate && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card rounded-2xl border border-border max-w-xl w-full p-6 space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-start border-b border-border pb-4">
+              <div>
+                <h3 className="font-display text-xl font-bold text-foreground flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-amber-600" /> Send Custom Message
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Applicant: <strong className="text-foreground">{messageCandidate.name}</strong> • {messageCandidate.email} • <span className="font-semibold">{messageCandidate.role}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMessageCandidate(null)}
+                className="text-muted-foreground hover:text-foreground text-xl font-bold p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSendCustomMessage} className="space-y-4">
+              {/* Quick Template Presets */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Quick Message Templates:
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomSubject(`Update regarding your application for ${messageCandidate.role} at BobaLive`);
+                      setCustomMessage(
+                        `Hello ${messageCandidate.name},\n\nWe are currently reviewing candidate applications for the ${messageCandidate.role} position and wanted to thank you for your interest in BobaLive.\n\nOur team will be in touch with further updates soon.\n\nBest regards,\nBobaLive HR Team`
+                      );
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-border bg-muted/50 hover:bg-muted text-foreground cursor-pointer transition-colors"
+                  >
+                    📝 General Update
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomSubject(`Document Request: Additional Details Needed for ${messageCandidate.role} Position`);
+                      setCustomMessage(
+                        `Hello ${messageCandidate.name},\n\nCould you please reply with an updated copy of your resume or any relevant certifications (e.g. food safety / beverage training) to help us complete your application evaluation?\n\nThank you,\nBobaLive Recruitment`
+                      );
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-border bg-muted/50 hover:bg-muted text-foreground cursor-pointer transition-colors"
+                  >
+                    📄 Request Documents
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomSubject(`Interview Availability Inquiry: ${messageCandidate.role} at BobaLive`);
+                      setCustomMessage(
+                        `Hello ${messageCandidate.name},\n\nWe would like to speak with you regarding your application for the ${messageCandidate.role} role. Please let us know what times and days work best for you this week for an interview.\n\nLooking forward to speaking with you!`
+                      );
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-border bg-muted/50 hover:bg-muted text-foreground cursor-pointer transition-colors"
+                  >
+                    💬 Interview Availability
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomSubject(`Message regarding your application for ${messageCandidate.role} at BobaLive`);
+                      setCustomMessage(`Hello ${messageCandidate.name},\n\n`);
+                    }}
+                    className="px-2.5 py-1 text-xs font-medium rounded-lg border border-dashed border-border bg-background hover:bg-muted text-muted-foreground cursor-pointer transition-colors"
+                  >
+                    ✨ Blank
+                  </button>
+                </div>
+              </div>
+
+              {/* Subject Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Email Subject</label>
+                <input
+                  type="text"
+                  required
+                  value={customSubject}
+                  onChange={(e) => setCustomSubject(e.target.value)}
+                  placeholder="Subject line..."
+                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
+                />
+              </div>
+
+              {/* Message Body */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Message Body</label>
+                <textarea
+                  required
+                  rows={6}
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder="Type your message to the applicant here..."
+                  className="w-full rounded-xl border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs resize-y"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  The message will be formatted with official BobaLive branding and dispatched directly to <strong>{messageCandidate.email}</strong>.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setMessageCandidate(null)}
+                  className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingCustomMessage || !customMessage.trim()}
+                  className="inline-flex items-center rounded-md bg-amber-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50 cursor-pointer shadow-xs"
+                >
+                  {sendingCustomMessage ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      Send Message
+                    </>
+                  )}
                 </button>
               </div>
             </form>

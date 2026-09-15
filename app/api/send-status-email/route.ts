@@ -85,6 +85,9 @@ export async function POST(req: Request) {
     const action = String(body.action || '').trim().toLowerCase(); // 'shortlist' | 'interview' | 'reject'
     const interviewDateTime = String(body.interviewDateTime || '').trim();
 
+    const customSubject = String(body.customSubject || '').trim();
+    const customMessage = String(body.customMessage || '').trim();
+
     if (!name || !email || !action) {
       return NextResponse.json(
         { error: 'Missing candidate name, email, or action type' },
@@ -100,7 +103,50 @@ export async function POST(req: Request) {
     let htmlContent = '';
     let icsContent = '';
 
-    if (action === 'shortlist') {
+    if (action === 'custom' || action === 'message') {
+      if (!customMessage) {
+        return NextResponse.json(
+          { error: 'Message content cannot be empty' },
+          { status: 400 }
+        );
+      }
+
+      const escapeHtml = (str: string) =>
+        str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+
+      subject = customSubject || `Message regarding your application for ${role} at BobaLive`;
+
+      const formattedParagraphs = customMessage
+        .split('\n')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0)
+        .map((p) => `<p style="color: #334155; line-height: 1.6; font-size: 15px; margin: 0 0 14px 0;">${escapeHtml(p)}</p>`)
+        .join('');
+
+      htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          <div style="border-bottom: 2px solid #5f7f7a; padding-bottom: 12px; margin-bottom: 18px;">
+            <h2 style="color: #1e293b; margin: 0; font-size: 20px;">BobaLive Recruitment</h2>
+            <p style="color: #5f7f7a; font-size: 13px; font-weight: bold; margin: 4px 0 0 0;">Position: ${escapeHtml(role)}</p>
+          </div>
+          
+          <div style="margin: 16px 0;">
+            ${formattedParagraphs}
+          </div>
+
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            Best regards,<br/>
+            <strong style="color: #475569;">BobaLive Recruitment Team</strong>
+          </p>
+        </div>
+      `;
+    } else if (action === 'shortlist') {
       subject = `Great news regarding your application for ${role} at BobaLive`;
       htmlContent = `
         <div style="font-family: Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
