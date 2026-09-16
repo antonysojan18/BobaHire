@@ -250,7 +250,7 @@ export default function AdminDashboard() {
         throw new Error(data.error || 'Failed to send message');
       }
 
-      alert(`Custom message successfully sent to ${messageCandidate.name} (${messageCandidate.email})!`);
+      alert(`Message successfully sent to ${messageCandidate.name} (${messageCandidate.email})!`);
       setMessageCandidate(null);
       setCustomSubject('');
       setCustomMessage('');
@@ -1414,7 +1414,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                           </button>
                           <button
                             type="button"
-                            title={`Send custom message to ${c.name}`}
+                            title={`Send message to ${c.name}`}
                             onClick={() => openMessageModal(c)}
                             className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted cursor-pointer"
                           >
@@ -1783,14 +1783,14 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
         </div>
       )}
 
-      {/* Custom Message to Applicant Modal */}
+      {/* Message to Applicant Modal */}
       {messageCandidate && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-card rounded-2xl border border-border max-w-xl w-full p-6 space-y-5 shadow-2xl my-8">
             <div className="flex justify-between items-start border-b border-border pb-4">
               <div>
                 <h3 className="font-display text-xl font-bold text-foreground flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-amber-600" /> Send Custom Message
+                  <MessageSquare className="h-5 w-5 text-amber-600" /> Send Message
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
                   Applicant: <strong className="text-foreground">{messageCandidate.name}</strong> • {messageCandidate.email} • <span className="font-semibold">{messageCandidate.role}</span>
