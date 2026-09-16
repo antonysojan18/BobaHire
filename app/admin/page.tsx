@@ -434,7 +434,7 @@ export default function AdminDashboard() {
 
   // Meta Ads CSV / Excel Batch Import Backup System
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('auto');
+  const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('HR Executive');
   const [batchImporting, setBatchImporting] = useState<boolean>(false);
   const [importStatus, setImportStatus] = useState<{
     total: number;
@@ -536,42 +536,8 @@ export default function AdminDashboard() {
         if (phoneColIdx !== -1 && row[phoneColIdx]) phone = safeStr(row[phoneColIdx]);
       }
 
-      // 4. Extract Role accurately
-      let role = 'Cafe Staff / Barista';
-
-      if (selectedRoleOverride && selectedRoleOverride !== 'auto') {
-        role = selectedRoleOverride;
-      } else {
-        const formName = safeStr(rowFields.form_name || rowFields.ad_name || rowFields.campaign_name || rowFields.adset_name || '');
-        const jobField = safeStr(rowFields.job_title || rowFields.role || rowFields.what_position_are_you_applying_for || rowFields.position || rowFields.applying_for || '');
-        const allRowHints = `${jobField} ${formName} ${Object.keys(rowFields).join(' ')} ${Object.values(rowFields).join(' ')}`.toLowerCase();
-
-        if (
-          allRowHints.includes('hr') ||
-          allRowHints.includes('human resource') ||
-          allRowHints.includes('personnel') ||
-          allRowHints.includes('recruiter') ||
-          allRowHints.includes('recruitment')
-        ) {
-          role = 'HR Executive';
-        } else if (
-          allRowHints.includes('general manager') ||
-          allRowHints.includes('gm') ||
-          allRowHints.includes('store manager') ||
-          allRowHints.includes('cafe manager') ||
-          allRowHints.includes('restaurant manager') ||
-          allRowHints.includes('branch manager') ||
-          allRowHints.includes('manager')
-        ) {
-          role = 'General Manager';
-        } else if (allRowHints.includes('barista') && !allRowHints.includes('cafe staff')) {
-          role = 'Barista';
-        } else if (allRowHints.includes('cafe staff') && !allRowHints.includes('barista')) {
-          role = 'Cafe Staff';
-        } else if (jobField) {
-          role = jobField;
-        }
-      }
+      // 4. Assign selected role
+      const role = selectedRoleOverride || 'HR Executive';
 
       const meta_lead_id = rowFields.id || rowFields.lead_id || rowFields.meta_lead_id || `lead_${Date.now()}_${r}`;
       const home_state = rowFields.please_select_your_home_state || rowFields.state || rowFields.home_state || 'Kerala';
@@ -1260,19 +1226,16 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
               />
             </div>
 
-            <div className="w-full md:w-64">
+            <div className="w-full md:w-56">
               <select
                 aria-label="Select target role for uploaded leads"
                 value={uploadRoleOverride}
                 onChange={(e) => setUploadRoleOverride(e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-[#a53861] h-[36px]"
               >
-                <option value="auto">🌐 Auto-Detect Role from File</option>
-                <option value="HR Executive">📋 HR Executive</option>
-                <option value="Cafe Staff / Barista">☕ Cafe Staff / Barista</option>
-                <option value="Barista">☕ Barista</option>
-                <option value="Cafe Staff">🥐 Cafe Staff</option>
-                <option value="General Manager">👔 Manager / General Manager</option>
+                <option value="HR Executive">HR Executive</option>
+                <option value="General Manager">Manager</option>
+                <option value="Cafe Staff / Barista">Cafe Staff / Barista</option>
               </select>
             </div>
 
