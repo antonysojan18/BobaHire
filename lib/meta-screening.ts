@@ -31,7 +31,87 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any>)
   const isBaristaOnly = normalizedRoleInput.includes('barista') && !normalizedRoleInput.includes('cafe staff');
   const isCafeStaffOnly = normalizedRoleInput.includes('cafe staff') && !normalizedRoleInput.includes('barista');
 
-  if (isGM) {
+  const isHR =
+    normalizedRoleInput.includes('hr') ||
+    normalizedRoleInput.includes('human resource') ||
+    normalizedRoleInput.includes('personnel');
+
+  if (isHR) {
+    const valExpYears = getFieldValue(
+      fields,
+      'years_of_experience',
+      'hr_experience',
+      'experience_in_hr',
+      'total_hr_experience',
+      'experience_duration'
+    ) || '2-5 years';
+
+    const valMulti = getFieldValue(
+      fields,
+      'multi_branch',
+      'multi_location',
+      'multiple_branches',
+      'managed_multiple_outlets',
+      'multi_outlet'
+    );
+    const multiBranch =
+      valMulti.toLowerCase() === 'yes' ||
+      valMulti.toLowerCase() === 'y' ||
+      valMulti.toLowerCase() === 'true';
+
+    const valRecruitment = getFieldValue(
+      fields,
+      'recruitment_experience',
+      'hiring_experience',
+      'sourcing_and_hiring',
+      'recruitment'
+    );
+    const hasRecruitment =
+      valRecruitment.toLowerCase() === 'yes' ||
+      valRecruitment.toLowerCase() === 'y' ||
+      valRecruitment.toLowerCase() === 'true' ||
+      valRecruitment.length > 0;
+
+    const valMalayalam = getFieldValue(
+      fields,
+      'malayalam_proficiency',
+      'malayalam_speaking',
+      'languages_spoken',
+      'malayalam'
+    );
+    const speaksMalayalam =
+      valMalayalam.toLowerCase() === 'yes' ||
+      valMalayalam.toLowerCase() === 'y' ||
+      valMalayalam.toLowerCase() === 'true' ||
+      valMalayalam.toLowerCase().includes('malayalam');
+
+    const valMobility = getFieldValue(
+      fields,
+      'two_wheeler',
+      'two_wheeler_available',
+      'driving_license',
+      'willing_to_travel',
+      'field_travel'
+    );
+    const hasTwoWheelerMobility =
+      valMobility.toLowerCase() === 'yes' ||
+      valMobility.toLowerCase() === 'y' ||
+      valMobility.toLowerCase() === 'true';
+
+    return {
+      passed: true,
+      normalizedRole: 'HR Executive',
+      questionnaire: {
+        hr_experience_duration: valExpYears,
+        multi_branch_experience: multiBranch,
+        recruitment_experience: hasRecruitment,
+        malayalam_proficiency: speaksMalayalam,
+        two_wheeler_mobility: hasTwoWheelerMobility,
+        home_state: getFieldValue(fields, 'home_state', 'state', 'please_select') || 'Kerala',
+        residing_city: getFieldValue(fields, 'residing_in_kochi', 'city', 'location') || 'Kochi',
+      },
+    };
+  } else if (isGM) {
     const val5Years = getFieldValue(fields, 'at_least_5_years', '5_years', 'five_plus', 'managerial_experience');
     const has5Years = val5Years.toLowerCase() === 'yes' || val5Years.toLowerCase() === 'y' || val5Years.toLowerCase() === 'true';
 

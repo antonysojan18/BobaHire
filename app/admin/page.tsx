@@ -58,6 +58,13 @@ interface Candidate {
       bubble_tea_experience_verified?: boolean | null;
       dual_beverage_ready?: boolean | null;
       age_eligibility_status?: string | null;
+      minimum_5_years_exp_verified?: boolean | null;
+      multi_outlet_verified?: boolean | null;
+      hr_experience_2_to_5_years_verified?: boolean | null;
+      recruitment_experience_verified?: boolean | null;
+      multi_branch_or_operational_verified?: boolean | null;
+      malayalam_proficiency_verified?: boolean | null;
+      two_wheeler_mobility_verified?: boolean | null;
       overall_eligible?: boolean | null;
       notes?: string | null;
     };
@@ -900,7 +907,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
     const timestamp = new Date().toISOString().slice(0, 10);
-    link.setAttribute('download', `BobaHire_Candidates_${timestamp}.csv`);
+    link.setAttribute('download', `BobaLive_Careers_Candidates_${timestamp}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -938,7 +945,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head><meta charset="utf-8"/></head>
       <body>
-        <h2 style="font-family:Arial;color:#1e293b;">BobaHire Candidate Evaluation Leaderboard</h2>
+        <h2 style="font-family:Arial;color:#1e293b;">BobaLive Careers — Candidate Evaluation Leaderboard</h2>
         <table border="1" style="font-family:Arial;border-collapse:collapse;width:100%;">
           <thead>
             <tr style="background-color:#7c2d12;color:#ffffff;font-weight:bold;">
@@ -960,7 +967,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
     const link = document.createElement('a');
     link.href = url;
     const timestamp = new Date().toISOString().slice(0, 10);
-    link.download = `BobaHire_Candidates_${timestamp}.xls`;
+    link.download = `BobaLive_Careers_Candidates_${timestamp}.xls`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1003,7 +1010,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
       <!DOCTYPE html>
       <html>
       <head>
-        <title>BobaHire Candidate Leaderboard Executive Report</title>
+        <title>BobaLive Careers — Candidate Leaderboard Executive Report</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 30px; color: #1e293b; }
           h1 { color: #1e293b; font-size: 22px; margin-bottom: 5px; }
@@ -1019,7 +1026,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
       <body>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <div>
-            <h1>BobaHire — Candidate Leaderboard Executive Report</h1>
+            <h1>BobaLive Careers — Candidate Leaderboard Executive Report</h1>
             <p>Generated on ${new Date().toLocaleDateString('en-US', { dateStyle: 'full' })} | Total Candidates: ${rows.length}</p>
           </div>
           <button onclick="window.print()" style="background: #2563eb; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;">
@@ -1074,21 +1081,23 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
       case 'rejected':
       case 'Rejected':
         return (
-          <span className="inline-flex items-center rounded-full border border-[#b93848]/40 bg-[#b93848]/15 px-2.5 py-1 text-xs font-semibold text-[#8c222f]">
+          <span className="inline-flex items-center rounded-full border border-rose-500/40 bg-rose-500/15 px-2.5 py-1 text-xs font-semibold text-rose-700">
             Rejected
           </span>
         );
       case 'reviewed':
       case 'AI Evaluated':
         return (
-          <span className="inline-flex items-center rounded-full border border-[#8e5270]/40 bg-[#8e5270]/15 px-2.5 py-1 text-xs font-semibold text-[#66314f]">
+          <span className="inline-flex items-center rounded-full border border-emerald-500/50 bg-emerald-100 dark:bg-emerald-950/50 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 shadow-xs">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             AI Evaluated
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center rounded-full border border-[#d6ab75]/50 bg-[#f1d4af]/30 px-2.5 py-1 text-xs font-semibold text-[#6b471d]">
-            Pending Resume
+          <span className="inline-flex items-center rounded-full border border-rose-400/60 bg-rose-100 dark:bg-rose-950/50 px-2.5 py-1 text-xs font-bold text-rose-700 dark:text-rose-400 shadow-xs">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-rose-500" />
+            Not Evaluated
           </span>
         );
     }
@@ -1108,7 +1117,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
             />
             <div className="min-w-0">
               <h1 className="truncate font-brand text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight drop-shadow-xs">
-                BobaHire
+                BobaLive Careers
               </h1>
             </div>
           </div>
@@ -1363,9 +1372,11 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                       <td className="px-5 py-4 border-r border-border/60">{renderStatusBadge(c.status)}</td>
                       <td className="px-5 py-4 border-r border-border/60">
                         {c.ai_score === null ? (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="inline-flex items-center text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900/50">
+                            —
+                          </span>
                         ) : (
-                          <span className="font-display text-lg font-bold text-foreground">
+                          <span className="font-display text-lg font-black text-emerald-700 dark:text-emerald-400">
                             {c.ai_score}
                             <span className="text-xs font-medium text-muted-foreground">/100</span>
                           </span>
@@ -1920,7 +1931,9 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                   {renderStatusBadge(activeModal.candidate.status)}
                   {/* Role Badge */}
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${
-                    activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm')
+                    activeModal.candidate.role.toLowerCase().includes('hr') || activeModal.candidate.role.toLowerCase().includes('human resource')
+                      ? 'bg-blue-100 text-blue-800 border-blue-300'
+                      : activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm')
                       ? 'bg-purple-100 text-purple-800 border-purple-300'
                       : activeModal.candidate.role.toLowerCase().includes('barista')
                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
@@ -1986,28 +1999,53 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
               {activeModal.candidate.ai_evaluation ? (
                 <>
                   {/* Scores Grid */}
-                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-                    {[
-                      { label: 'Experience', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 35 : 40 },
-                      { label: 'Core Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 25 : 30 },
-                      { label: 'Communication', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 20 : 15 },
-                      { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: activeModal.candidate.role.toLowerCase().includes('gm') ? 20 : 15 },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-xl border border-border bg-muted/40 p-3.5">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                        <p className="mt-1 font-display text-2xl font-black text-foreground">
-                          {item.score}
-                          <span className="text-xs font-medium text-muted-foreground">/{item.max}</span>
-                        </p>
-                        <div className="mt-2 h-2 w-full rounded-full bg-border overflow-hidden">
-                          <div
-                            className="h-2 rounded-full bg-primary transition-all duration-500"
-                            style={{ width: `${Math.min(100, (item.score / item.max) * 100)}%` }}
-                          />
-                        </div>
+                  {(() => {
+                    const isHR = activeModal.candidate.role.toLowerCase().includes('hr') || activeModal.candidate.role.toLowerCase().includes('human resource');
+                    const isGM = activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm');
+
+                    const items = isHR
+                      ? [
+                          { label: 'HR & Multi-Branch Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 35 },
+                          { label: 'HR Ops & Compliance', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                          { label: 'People Mgmt & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 20 },
+                          { label: 'Stability & Mobility', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                        ]
+                      : isGM
+                      ? [
+                          { label: 'Multi-Outlet & P&L', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 35 },
+                          { label: 'People Leadership', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 25 },
+                          { label: 'QSR / Cafe Relevance', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 20 },
+                          { label: 'Consistency & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 20 },
+                        ]
+                      : [
+                          { label: 'Experience', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
+                          { label: 'Core Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                          { label: 'Communication', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                          { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                        ];
+
+                    return (
+                      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                        {items.map((item) => (
+                          <div key={item.label} className="rounded-xl border border-border bg-muted/40 p-3.5">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground truncate" title={item.label}>
+                              {item.label}
+                            </p>
+                            <p className="mt-1 font-display text-2xl font-black text-foreground">
+                              {item.score}
+                              <span className="text-xs font-medium text-muted-foreground">/{item.max}</span>
+                            </p>
+                            <div className="mt-2 h-2 w-full rounded-full bg-border overflow-hidden">
+                              <div
+                                className="h-2 rounded-full bg-primary transition-all duration-500"
+                                style={{ width: `${Math.min(100, (item.score / item.max) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
 
                   {/* Total Score Banner */}
                   <div className="flex items-center justify-between rounded-xl border border-border bg-card p-4 shadow-xs">
@@ -2047,6 +2085,67 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                         </span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        {/* HR Executive Eligibility Fields */}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.hr_experience_2_to_5_years_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">2–5 Yrs HR Exp:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.hr_experience_2_to_5_years_verified ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.hr_experience_2_to_5_years_verified ? '✓ Verified' : '✕ Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.recruitment_experience_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Recruitment Exp:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.recruitment_experience_verified ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.recruitment_experience_verified ? '✓ Verified' : 'Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_branch_or_operational_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Multi-Branch Exp:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_branch_or_operational_verified ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_branch_or_operational_verified ? '✓ Verified' : 'Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.malayalam_proficiency_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Malayalam:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.malayalam_proficiency_verified ? 'text-emerald-700' : 'text-amber-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.malayalam_proficiency_verified ? '✓ Verified' : 'Unverified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.two_wheeler_mobility_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Mobility / Bike:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.two_wheeler_mobility_verified ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.two_wheeler_mobility_verified ? '✓ Verified' : 'Not Stated'}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* GM Eligibility Fields */}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_5_years_exp_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">5+ Yrs Mgr Exp:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_5_years_exp_verified ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_5_years_exp_verified ? '✓ Verified' : '✕ Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_outlet_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Multi-Outlet:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_outlet_verified ? 'text-emerald-700' : 'text-amber-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_outlet_verified ? '✓ Verified' : 'Unverified'}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Barista & Cafe Staff Fields */}
                         {activeModal.candidate.ai_evaluation.mandatory_eligibility.barista_training_verified !== undefined &&
                           activeModal.candidate.ai_evaluation.mandatory_eligibility.barista_training_verified !== null && (
                             <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">

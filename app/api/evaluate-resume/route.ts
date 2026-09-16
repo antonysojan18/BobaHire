@@ -421,9 +421,217 @@ Return ONLY a valid JSON object matching this schema:
 `;
 }
 
+/**
+ * Generate evaluation prompt for HR EXECUTIVE — MULTI-BRANCH role (58 criteria)
+ */
+function generateHRExecutivePrompt(questionnaire: Record<string, any>, resumeText: string): string {
+  return `
+You are a Senior Human Resources Director & Executive Talent Auditor for "Boba Live", a fast-growing multi-branch specialty beverage & QSR chain.
+You are evaluating a candidate's CV for the position: "HR Executive — Multi-Branch".
+
+==================================================
+ROLE CONTEXT & CORE REQUIREMENTS
+==================================================
+Role: HR Executive — Multi-Branch
+The HR Executive is responsible for end-to-end HR operations across multiple café outlets and branches, including high-volume recruitment, frontline employee onboarding, attendance/shift monitoring, leave & payroll support, performance management, workplace disciplinary and conflict resolution, statutory HR compliance, and frequent branch visits/field coordination.
+
+Eligibility & General Requirements:
+* 2–5 Years of relevant HR or personnel management experience
+* Practical recruitment and hiring experience across frontline/operational staff
+* Multi-branch, multi-outlet, or distributed workforce operational HR exposure
+* Practical knowledge of Indian statutory compliance (PF, ESI, Minimum Wages, Labour Laws, Shops & Establishments)
+* Proficiency in Malayalam (regional branch staff communication) and English
+* Willingness and mobility to travel between branches (Two-wheeler ownership/licence preferred)
+
+==================================================
+CANDIDATE SELF-REPORTED META QUESTIONNAIRE CLAIMS
+==================================================
+- Claimed HR Experience Duration: ${questionnaire.hr_experience_duration || questionnaire.experience_duration || '2-5 years'}
+- Multi-Branch / Multi-Location Experience Claimed: ${questionnaire.multi_branch_experience ? 'Yes' : 'No'}
+- Recruitment & Sourcing Exposure Claimed: ${questionnaire.recruitment_experience ? 'Yes' : 'No'}
+- Malayalam Language Proficiency Claimed: ${questionnaire.malayalam_proficiency ? 'Yes' : 'No'}
+- Two-Wheeler / Travel Mobility Claimed: ${questionnaire.two_wheeler_mobility ? 'Yes' : 'No'}
+- Home State / Residing Location: ${questionnaire.home_state || 'Kerala'} / ${questionnaire.residing_city || 'Kochi'}
+
+==================================================
+APPLICANT CV TEXT CONTENT
+==================================================
+"""
+${resumeText}
+"""
+
+==================================================
+HR EXECUTIVE — 58 AI CV EVALUATION CRITERIA
+==================================================
+Evaluate the candidate's CV strictly against ALL 58 criteria across the 10 categories below.
+Identify direct and indirect evidence from employment history, job responsibilities, qualifications, certifications, skills, and other relevant CV information. Exact keyword matching alone should NOT be used.
+
+--- Category 1: HR Experience & Core Eligibility ---
+1. HR Experience: Does the candidate have professional experience specifically in Human Resources or personnel management?
+2. 2–5 Years HR Experience: Does the candidate have approximately 2–5 years of relevant HR experience?
+3. HR Executive-Level Experience: Has the candidate previously held roles such as HR Executive, HR Generalist, HR Officer, HR Coordinator, HR Associate, or equivalent?
+4. End-to-End HR Exposure: Does the candidate demonstrate experience across multiple HR functions rather than working exclusively in one narrow HR area?
+5. Recruitment & Hiring: Does the candidate have practical experience sourcing, screening, interviewing, shortlisting, selecting, or hiring employees?
+6. Recruitment Volume: Does the CV indicate experience handling recruitment for multiple positions, departments, outlets, or a high number of employees?
+
+--- Category 2: Employee Management ---
+7. Employee Onboarding: Does the candidate have experience handling or coordinating employee onboarding, joining formalities, induction, orientation, or new-employee documentation?
+8. Training Coordination: Does the candidate have experience coordinating employee training, orientation, development programs, or training schedules?
+9. Attendance Management: Does the candidate have experience monitoring or maintaining employee attendance, working hours, shifts, timesheets, or attendance records?
+10. Leave Management: Does the candidate have experience managing employee leave requests, leave records, or leave-related processes?
+11. Employee Documentation: Does the candidate have experience maintaining employee records, HR files, personnel documentation, contracts, or other HR documentation?
+12. Payroll Support: Does the candidate have experience preparing, verifying, coordinating, or supporting payroll processing?
+13. Performance Management: Does the candidate have experience monitoring employee performance, conducting appraisals, performance reviews, KPIs, or performance improvement processes?
+14. Disciplinary Management: Does the candidate have experience handling employee misconduct, disciplinary procedures, warnings, attendance issues, or workplace policy violations?
+15. Employee Complaints: Does the candidate have experience receiving, documenting, investigating, or resolving employee complaints or grievances?
+16. Conflict Resolution: Does the candidate demonstrate professional experience resolving workplace conflicts or disputes between employees, teams, or management?
+17. Employee Retention: Does the candidate have experience with employee engagement, retention initiatives, reducing turnover, or addressing employee concerns related to retention?
+18. Exit Management: Does the candidate have experience handling resignations, exit interviews, clearance procedures, termination processes, or employee offboarding?
+
+--- Category 3: Multi-Branch / Operational HR Experience ---
+19. Multi-Location HR: Has the candidate previously managed or supported HR activities across multiple branches, outlets, stores, offices, or locations?
+20. Branch/Outlet Staff Management: Does the CV demonstrate experience dealing directly with employees or staff working at operational locations such as restaurants, QSRs, retail stores, hotels, or other outlets?
+21. Large Workforce Management: Does the candidate have experience managing HR processes for a significant number of employees?
+22. Branch Visits / Field HR: Does the candidate's previous role indicate regular travel between branches, stores, sites, outlets, or other work locations to handle employee or HR matters?
+23. Operational Workforce: Does the candidate have experience managing employees working in shift-based, customer-facing, frontline, or operational roles?
+
+--- Category 4: Industry Relevance ---
+24. QSR Experience: Has the candidate previously worked in HR within a Quick Service Restaurant/QSR environment?
+25. Restaurant/F&B Experience: Has the candidate worked in HR or employee-management functions within a restaurant, café, food-service, or F&B business?
+26. Retail Experience: Has the candidate worked in HR within a retail business involving multiple employees, stores, or branches?
+27. Hospitality Experience: Has the candidate worked in HR within hotels, hospitality, or similar service-based businesses?
+28. Service-Industry Workforce: Does the candidate have experience managing employees in a high-volume, customer-facing service environment?
+
+--- Category 5: Communication & People Management ---
+29. Employee Communication: Does the candidate's previous experience demonstrate frequent professional communication with employees at different levels?
+30. People Management: Does the candidate have practical experience managing, coordinating, supervising, or supporting employees?
+31. Management Communication: Does the candidate demonstrate experience communicating HR matters to managers, supervisors, branch heads, or senior management?
+32. Conflict & Difficult Conversations: Does the candidate's experience indicate that they have handled sensitive employee conversations, complaints, disciplinary matters, or workplace disputes?
+33. Interpersonal Skills: Does the candidate's work history provide evidence of strong interpersonal skills in employee-facing or people-management situations? Do not rely solely on a generic "good communication skills" claim.
+
+--- Category 6: Language & Mobility ---
+34. Malayalam: Does the CV explicitly indicate Malayalam language proficiency?
+35. English: Does the CV explicitly indicate English language proficiency?
+36. Multi-Branch Travel: Does the candidate's previous work experience indicate willingness or experience travelling between different branches, offices, sites, or work locations?
+37. Two-Wheeler / Driving: Does the CV indicate possession of a two-wheeler, valid driving licence, or experience requiring regular two-wheeler travel?
+
+--- Category 7: HR Compliance & Legal Knowledge ---
+38. Labour Law Knowledge: Does the candidate demonstrate knowledge or practical experience relating to labour laws, employment regulations, or statutory HR requirements?
+39. HR Compliance: Does the candidate have experience maintaining HR compliance, statutory records, employee documentation, or internal HR policies?
+40. Statutory Compliance: Does the CV mention experience with HR-related statutory processes such as PF, ESI, gratuity, minimum wages, professional tax, Shops & Establishments requirements, or similar compliance areas?
+41. HR Policies: Does the candidate have experience implementing, communicating, or maintaining workplace HR policies and procedures?
+
+--- Category 8: HR Systems & Administration ---
+42. HRMS/HR Software: Does the candidate have experience using HRMS, HRIS, payroll software, attendance systems, or other HR technology?
+43. HR Data Management: Does the candidate have experience maintaining employee databases, HR reports, attendance data, leave records, or workforce information?
+44. Reporting: Does the candidate have experience preparing HR reports, workforce reports, recruitment reports, attendance reports, attrition reports, or similar management reports?
+45. Recruitment Platforms: Does the candidate demonstrate experience using recruitment platforms, job portals, applicant tracking systems, LinkedIn, or other hiring channels?
+
+--- Category 9: Qualifications & Professional Development ---
+46. HR/Education Qualification: Does the candidate possess an educational qualification relevant to HR, Human Resources Management, Business Administration, Psychology, or a related field?
+47. HR Certifications: Does the candidate possess HR-related certifications, professional courses, diplomas, or additional training?
+48. HR Career Progression: Does the candidate demonstrate progression in HR responsibilities, such as moving from HR Assistant/Coordinator roles into HR Executive, HR Generalist, HR Manager, or similar positions?
+
+--- Category 10: Overall Suitability & Verification Flags ---
+49. Multi-Branch HR Readiness: Based on the complete CV, does the candidate demonstrate experience relevant to independently managing HR activities across multiple operational locations?
+50. Overall Role Relevance: How closely does the candidate's demonstrated experience match an HR Executive role responsible for recruitment, employee management, HR administration, compliance, and staff coordination across multiple branches?
+51. Insufficient HR Experience: Does the CV indicate less than 2 years of relevant HR experience?
+52. Excessive/Seniority Mismatch: Does the candidate's experience significantly exceed the 2–5 year requirement or indicate a substantially more senior profile?
+53. Recruitment Gap: Is there insufficient evidence that the candidate has personally handled recruitment or hiring?
+54. Employee Management Gap: Is there insufficient evidence of direct employee/staff management or people-management responsibilities?
+55. Multi-Branch Experience Gap: Is there no identifiable evidence of working across multiple branches, locations, stores, outlets, or sites?
+56. Compliance Gap: Is there insufficient evidence of exposure to labour law, statutory compliance, or HR policies?
+57. Language Verification: Is Malayalam or English proficiency not explicitly established in the CV?
+58. Mobility Verification: Is there no evidence of the candidate having experience with travel between work locations or other field-based HR responsibilities?
+
+==================================================
+IMPORTANT AI AUDITING INSTRUCTIONS
+==================================================
+* Prioritize actual HR responsibilities listed under previous employment over generic skill statements.
+* A candidate listing "Recruitment" under Skills should NOT receive the same evidence strength as a candidate whose employment history states that they independently sourced, screened, interviewed, and hired employees.
+* Distinguish between "Direct Evidence", "Indirect Evidence", "Not Verified", and "Gap / Risk".
+* Do not assume QSR/restaurant/retail/hospitality experience merely because the candidate has general HR experience.
+* Give additional relevance to candidates who have managed frontline, shift-based, customer-facing employees.
+* For multi-branch suitability, look for evidence such as multiple outlets, multiple locations, branch visits, workforce size, geographically distributed teams, or centralized HR responsibility.
+* Do not assume Malayalam or English proficiency based solely on the candidate's location or name. Look for explicit language information or relevant CV evidence.
+* Do not infer possession of a two-wheeler unless explicitly mentioned. A driving licence alone should not automatically be treated as proof of two-wheeler ownership.
+* Do not invent missing information. If the CV does not provide sufficient evidence for a criterion, mark it as "Not Verified" rather than assuming possession.
+* Mandatory eligibility criteria and positive scoring criteria should be kept separate.
+* The final assessment should show the overall score, individual criterion scores, supporting CV evidence, and important gaps/verification requirements.
+
+==================================================
+SCORING & EVALUATION RULES (100-POINT TOTAL)
+==================================================
+Score the candidate strictly on a 100-point scale across 4 core pillars:
+1. HR Experience, Multi-Branch & Industry Exposure (Max 35 points):
+   - 30-35 pts: 2–5 years core HR experience with multi-branch/multi-unit operations in QSR/F&B/Retail/Hospitality/Service industry.
+   - 20-29 pts: 2–5 years general HR experience in corporate or single location with operational/frontline workforce.
+   - 10-19 pts: 1–2 years junior HR/assistant experience or unrelated sector.
+   - 0-9 pts: Less than 1 year or non-HR background.
+
+2. Core HR Operations, Recruitment & Compliance (Max 30 points):
+   - 25-30 pts: Proven hands-on full lifecycle recruitment, onboarding, attendance/payroll coordination, statutory compliance (PF, ESI, labour laws), HRMS tools.
+   - 18-24 pts: Strong recruitment & onboarding with basic compliance or HRMS exposure.
+   - 10-17 pts: Limited administrative HR tasks with minimal hiring/statutory compliance.
+   - 0-9 pts: No practical HR operational experience.
+
+3. People Management, Conflict Resolution & Communication (Max 20 points):
+   - 18-20 pts: Strong frontline employee grievance handling, disciplinary procedures, performance appraisals, multi-level stakeholder communication.
+   - 12-17 pts: Moderate employee coordination and conflict management experience.
+   - 0-11 pts: Minimal or indirect people handling experience.
+
+4. Stability, Qualifications, Languages & Mobility (Max 15 points):
+   - 13-15 pts: Relevant HR/Business degree/MBA, stable employment history, verified Malayalam & English proficiency, two-wheeler/field mobility verified.
+   - 8-12 pts: General degree, moderate tenure stability, partial language or mobility confirmation.
+   - 0-7 pts: Frequent job-hopping, unverified languages, lack of mobility or mismatch.
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "total_score": <number 0-100>,
+  "criteria_breakdown": {
+    "experience_points": <number 0-35>,
+    "skills_points": <number 0-30>,
+    "communication_points": <number 0-20>,
+    "stability_education_points": <number 0-15>
+  },
+  "mandatory_eligibility": {
+    "hr_experience_2_to_5_years_verified": <boolean>,
+    "recruitment_experience_verified": <boolean>,
+    "multi_branch_or_operational_verified": <boolean>,
+    "malayalam_proficiency_verified": <boolean>,
+    "two_wheeler_mobility_verified": <boolean>,
+    "overall_eligible": <boolean>,
+    "notes": "<concise summary of HR eligibility compliance>"
+  },
+  "summary": "<2-3 sentence executive recruitment summary>",
+  "meta_verification_status": "Verified" | "Discrepancy Noted" | "Unverified",
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "gaps": ["<gap 1>", "<gap 2>"],
+  "recommendation": "Strongly Recommended" | "Recommended" | "Not Recommended",
+  "evaluated_questions": [
+    {
+      "id": 1,
+      "category": "HR Experience & Core Eligibility",
+      "question": "HR Experience: Does the candidate have professional experience specifically in Human Resources or personnel management?",
+      "status": "Direct Evidence" | "Indirect Evidence" | "Not Verified" | "Gap / Risk",
+      "evidence": "<exact quote or specific CV evidence>"
+    }
+    // ... all 58 questions sequentially from 1 to 58
+  ]
+}
+`;
+}
+
 // Construct dynamic system prompt based on role and meta lead data
 function generateEvaluationPrompt(role: string, questionnaire: Record<string, any>, resumeText: string): string {
   const normalized = (role || '').toLowerCase();
+  if (
+    normalized.includes('hr') ||
+    normalized.includes('human resource') ||
+    normalized.includes('personnel')
+  ) {
+    return generateHRExecutivePrompt(questionnaire, resumeText);
+  }
   if (normalized.includes('general manager') || normalized.includes('gm')) {
     return generateGMPrompt(questionnaire, resumeText);
   }
