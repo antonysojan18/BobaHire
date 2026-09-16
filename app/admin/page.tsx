@@ -1416,9 +1416,9 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                             type="button"
                             title={`Send custom message to ${c.name}`}
                             onClick={() => openMessageModal(c)}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 cursor-pointer transition-colors"
+                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted cursor-pointer"
                           >
-                            <MessageSquare className="mr-1 h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                            <MessageSquare className="mr-1 h-3.5 w-3.5" />
                             Message
                           </button>
                           <button
