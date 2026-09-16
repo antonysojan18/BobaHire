@@ -1060,43 +1060,47 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
       case 'selected':
       case 'Selected':
         return (
-          <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+          <span className="inline-flex items-center text-xs font-bold text-[#5f7f7a]">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#5f7f7a]" />
             Selected
           </span>
         );
       case 'shortlisted':
       case 'Shortlisted':
         return (
-          <span className="inline-flex items-center rounded-full border border-[#5f7f7a]/40 bg-[#5f7f7a]/15 px-2.5 py-1 text-xs font-semibold text-[#3d5a55]">
+          <span className="inline-flex items-center text-xs font-bold text-[#3d5a55]">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#3d5a55]" />
             Shortlisted
           </span>
         );
       case 'interview':
       case 'Interview Scheduled':
         return (
-          <span className="inline-flex items-center rounded-full border border-blue-500/40 bg-blue-500/15 px-2.5 py-1 text-xs font-semibold text-blue-700">
+          <span className="inline-flex items-center text-xs font-bold text-indigo-700">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-indigo-600" />
             Interview Scheduled
           </span>
         );
       case 'rejected':
       case 'Rejected':
         return (
-          <span className="inline-flex items-center rounded-full border border-rose-500/40 bg-rose-500/15 px-2.5 py-1 text-xs font-semibold text-rose-700">
+          <span className="inline-flex items-center text-xs font-bold text-[#a53861]">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#a53861]" />
             Rejected
           </span>
         );
       case 'reviewed':
       case 'AI Evaluated':
         return (
-          <span className="inline-flex items-center rounded-full border border-emerald-500/50 bg-emerald-100 dark:bg-emerald-950/50 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 shadow-xs">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="inline-flex items-center text-xs font-bold text-[#3d5a55]">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#5f7f7a]" />
             AI Evaluated
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center rounded-full border border-rose-400/60 bg-rose-100 dark:bg-rose-950/50 px-2.5 py-1 text-xs font-bold text-rose-700 dark:text-rose-400 shadow-xs">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-rose-500" />
+          <span className="inline-flex items-center text-xs font-bold text-[#a53861]">
+            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#a53861]" />
             Not Evaluated
           </span>
         );
@@ -1372,11 +1376,9 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                       <td className="px-5 py-4 border-r border-border/60">{renderStatusBadge(c.status)}</td>
                       <td className="px-5 py-4 border-r border-border/60">
                         {c.ai_score === null ? (
-                          <span className="inline-flex items-center text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900/50">
-                            —
-                          </span>
+                          <span className="text-muted-foreground">—</span>
                         ) : (
-                          <span className="font-display text-lg font-black text-emerald-700 dark:text-emerald-400">
+                          <span className="font-display text-lg font-bold text-foreground">
                             {c.ai_score}
                             <span className="text-xs font-medium text-muted-foreground">/100</span>
                           </span>
