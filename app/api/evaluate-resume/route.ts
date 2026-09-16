@@ -673,7 +673,24 @@ export async function POST(req: Request) {
       .single();
 
     const questionnaire = candidateRecord?.questionnaire_data || body.questionnaire || {};
-    const effectiveRole = candidateRecord?.role || role || 'Cafe Staff';
+    let effectiveRole = candidateRecord?.role || role || 'Cafe Staff';
+
+    // Auto-detect role if questionnaire contains HR or GM indicators
+    const qKeys = Object.keys(questionnaire).join(' ').toLowerCase();
+    if (
+      qKeys.includes('hr_experience') ||
+      qKeys.includes('recruitment_experience') ||
+      qKeys.includes('multi_branch') ||
+      qKeys.includes('two_wheeler')
+    ) {
+      effectiveRole = 'HR Executive';
+    } else if (
+      qKeys.includes('five_plus_years_exp') ||
+      qKeys.includes('multi_outlet_managed') ||
+      qKeys.includes('outlet_scale')
+    ) {
+      effectiveRole = 'General Manager';
+    }
 
     // 1. Download the PDF from the Supabase public URL
     let arrayBuffer: ArrayBuffer;
@@ -776,6 +793,7 @@ export async function POST(req: Request) {
       .from('candidates')
       .update({
         resume_url: resumeUrl,
+        role: effectiveRole,
         status: 'reviewed',
         ai_score: sanitizedEvaluation.total_score,
         ai_evaluation: sanitizedEvaluation,

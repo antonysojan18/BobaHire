@@ -282,7 +282,8 @@ export async function POST(req: Request) {
                 fieldMap.position ||
                 fieldMap.role ||
                 fieldMap.form_name ||
-                'Cafe Staff / Barista';
+                fieldMap.job_title ||
+                '';
               const homeState = fieldMap.home_state || fieldMap.state || fieldMap.please_select_your_home_state || 'Kerala';
               const residingCity = fieldMap.residing_city || fieldMap.city || fieldMap.location || 'Kochi';
 
@@ -316,7 +317,7 @@ export async function POST(req: Request) {
     const name = String(body.name || body.full_name || '').trim() || 'Candidate';
     const email = String(body.email || body.email_address || '').trim().toLowerCase();
     const phone = String(body.phone || body.phone_number || '').trim();
-    const roleInput = String(body.role || body.job_title || body.form_name || body.ad_name || 'Cafe Staff / Barista').trim();
+    const roleInput = String(body.role || body.job_title || body.form_name || body.ad_name || '').trim();
     const metaLeadId = String(body.meta_lead_id || body.lead_id || body.id || '').trim();
     const homeState = String(body.home_state || body.state || body.please_select_your_home_state || '').trim();
     const residingCity = String(body.residing_city || body.city || body.location || '').trim();

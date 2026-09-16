@@ -152,7 +152,38 @@ export default function AdminDashboard() {
     if (error) {
       console.error('Error loading candidates:', error);
     } else if (data) {
-      setCandidates(data as Candidate[]);
+      const normalizedCandidates = (data as Candidate[]).map((c) => {
+        const q = c.questionnaire_data || {};
+        const qKeys = Object.keys(q).join(' ').toLowerCase();
+        let targetRole = c.role;
+
+        if (
+          qKeys.includes('hr_experience') ||
+          qKeys.includes('recruitment_experience') ||
+          qKeys.includes('multi_branch') ||
+          qKeys.includes('two_wheeler')
+        ) {
+          if (!c.role || c.role.toLowerCase().includes('cafe') || c.role.toLowerCase().includes('barista')) {
+            targetRole = 'HR Executive';
+            // Sync database asynchronously
+            supabase.from('candidates').update({ role: 'HR Executive' }).eq('id', c.id).then();
+          }
+        } else if (
+          qKeys.includes('five_plus_years_exp') ||
+          qKeys.includes('multi_outlet_managed') ||
+          qKeys.includes('outlet_scale')
+        ) {
+          if (!c.role || c.role.toLowerCase().includes('cafe') || c.role.toLowerCase().includes('barista')) {
+            targetRole = 'General Manager';
+            // Sync database asynchronously
+            supabase.from('candidates').update({ role: 'General Manager' }).eq('id', c.id).then();
+          }
+        }
+
+        return { ...c, role: targetRole };
+      });
+
+      setCandidates(normalizedCandidates);
     }
   };
 
@@ -501,16 +532,34 @@ export default function AdminDashboard() {
         if (phoneColIdx !== -1 && row[phoneColIdx]) phone = safeStr(row[phoneColIdx]);
       }
 
-      // 4. Extract Role
-      const formName = rowFields.form_name || rowFields.ad_name || rowFields.campaign_name || '';
-      const role =
-        rowFields.job_title ||
-        rowFields.role ||
-        rowFields.what_position_are_you_applying_for ||
-        rowFields.position ||
-        (formName.toLowerCase().includes('gm') || formName.toLowerCase().includes('general manager')
-          ? 'General Manager'
-          : 'Cafe Staff / Barista');
+      // 4. Extract Role accurately
+      const formName = safeStr(rowFields.form_name || rowFields.ad_name || rowFields.campaign_name || rowFields.adset_name || '');
+      const jobField = safeStr(rowFields.job_title || rowFields.role || rowFields.what_position_are_you_applying_for || rowFields.position || rowFields.applying_for || '');
+      const allRowHints = `${jobField} ${formName} ${Object.keys(rowFields).join(' ')} ${Object.values(rowFields).join(' ')}`.toLowerCase();
+
+      let role = 'Cafe Staff / Barista';
+      if (
+        allRowHints.includes('hr') ||
+        allRowHints.includes('human resource') ||
+        allRowHints.includes('personnel') ||
+        allRowHints.includes('recruiter') ||
+        allRowHints.includes('recruitment')
+      ) {
+        role = 'HR Executive';
+      } else if (
+        allRowHints.includes('general manager') ||
+        allRowHints.includes('gm') ||
+        allRowHints.includes('store manager') ||
+        allRowHints.includes('restaurant manager')
+      ) {
+        role = 'General Manager';
+      } else if (allRowHints.includes('barista') && !allRowHints.includes('cafe staff')) {
+        role = 'Barista';
+      } else if (allRowHints.includes('cafe staff') && !allRowHints.includes('barista')) {
+        role = 'Cafe Staff';
+      } else if (jobField) {
+        role = jobField;
+      }
 
       const meta_lead_id = rowFields.id || rowFields.lead_id || rowFields.meta_lead_id || `lead_${Date.now()}_${r}`;
       const home_state = rowFields.please_select_your_home_state || rowFields.state || rowFields.home_state || 'Kerala';

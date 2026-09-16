@@ -22,19 +22,51 @@ function getFieldValue(fields: Record<string, any>, ...substrings: string[]): st
   return '';
 }
 
-/**
- * Lead ingestion logic - processes every lead and passes them directly for email invite
- */
-export function evaluateMetaScreening(role: string, fields: Record<string, any>): MetaScreeningResult {
-  const normalizedRoleInput = String(role || '').toLowerCase();
-  const isGM = normalizedRoleInput.includes('general manager') || normalizedRoleInput.includes('gm');
-  const isBaristaOnly = normalizedRoleInput.includes('barista') && !normalizedRoleInput.includes('cafe staff');
-  const isCafeStaffOnly = normalizedRoleInput.includes('cafe staff') && !normalizedRoleInput.includes('barista');
+export function evaluateMetaScreening(role: string, fields: Record<string, any> = {}): MetaScreeningResult {
+  const explicitRole = String(role || '').toLowerCase();
+  const formHints = [
+    getFieldValue(fields, 'form_name', 'form_title', 'form', 'ad_name', 'adset_name', 'campaign_name'),
+    getFieldValue(fields, 'job_title', 'position', 'role', 'what_position_are_you_applying_for', 'applying_for'),
+  ].filter(Boolean).join(' ').toLowerCase();
 
+  const fieldKeys = Object.keys(fields || {}).join(' ').toLowerCase();
+
+  // Check for HR Executive
   const isHR =
-    normalizedRoleInput.includes('hr') ||
-    normalizedRoleInput.includes('human resource') ||
-    normalizedRoleInput.includes('personnel');
+    explicitRole.includes('hr') ||
+    explicitRole.includes('human resource') ||
+    explicitRole.includes('personnel') ||
+    explicitRole.includes('recruiter') ||
+    formHints.includes('hr') ||
+    formHints.includes('human resource') ||
+    formHints.includes('personnel') ||
+    formHints.includes('recruitment') ||
+    fieldKeys.includes('hr_experience') ||
+    fieldKeys.includes('recruitment_experience') ||
+    fieldKeys.includes('multi_branch') ||
+    fieldKeys.includes('two_wheeler');
+
+  // Check for General Manager
+  const isGM =
+    !isHR &&
+    (explicitRole.includes('general manager') ||
+      explicitRole.includes('gm') ||
+      formHints.includes('general manager') ||
+      formHints.includes('gm') ||
+      fieldKeys.includes('managerial_experience') ||
+      fieldKeys.includes('multi_outlet'));
+
+  const isBaristaOnly =
+    !isHR &&
+    !isGM &&
+    ((explicitRole.includes('barista') && !explicitRole.includes('cafe staff')) ||
+      (formHints.includes('barista') && !formHints.includes('cafe staff')));
+
+  const isCafeStaffOnly =
+    !isHR &&
+    !isGM &&
+    ((explicitRole.includes('cafe staff') && !explicitRole.includes('barista')) ||
+      (formHints.includes('cafe staff') && !formHints.includes('barista')));
 
   if (isHR) {
     const valExpYears = getFieldValue(
