@@ -1060,48 +1060,42 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
       case 'selected':
       case 'Selected':
         return (
-          <span className="inline-flex items-center text-xs font-bold text-[#5f7f7a]">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#5f7f7a]" />
+          <span className="text-xs font-bold text-[#5f7f7a]">
             Selected
           </span>
         );
       case 'shortlisted':
       case 'Shortlisted':
         return (
-          <span className="inline-flex items-center text-xs font-bold text-[#3d5a55]">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#3d5a55]" />
+          <span className="text-xs font-bold text-[#3d5a55]">
             Shortlisted
           </span>
         );
       case 'interview':
       case 'Interview Scheduled':
         return (
-          <span className="inline-flex items-center text-xs font-bold text-indigo-700">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-indigo-600" />
+          <span className="text-xs font-bold text-indigo-700">
             Interview Scheduled
           </span>
         );
       case 'rejected':
       case 'Rejected':
         return (
-          <span className="inline-flex items-center text-xs font-bold text-[#a53861]">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#a53861]" />
+          <span className="text-xs font-bold text-[#a53861]">
             Rejected
           </span>
         );
       case 'reviewed':
       case 'AI Evaluated':
         return (
-          <span className="inline-flex items-center text-xs font-bold text-[#3d5a55]">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#5f7f7a]" />
+          <span className="text-xs font-bold text-[#3d5a55]">
             AI Evaluated
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center text-xs font-bold text-[#a53861]">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-[#a53861]" />
-            Not Evaluated
+          <span className="text-xs font-bold text-[#a53861]">
+            Pending
           </span>
         );
     }
