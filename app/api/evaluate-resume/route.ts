@@ -628,14 +628,25 @@ function generateEvaluationPrompt(role: string, questionnaire: Record<string, an
   if (
     normalized.includes('hr') ||
     normalized.includes('human resource') ||
-    normalized.includes('personnel')
+    normalized.includes('personnel') ||
+    normalized.includes('recruiter') ||
+    normalized.includes('recruitment')
   ) {
     return generateHRExecutivePrompt(questionnaire, resumeText);
   }
-  if (normalized.includes('general manager') || normalized.includes('gm')) {
+  if (
+    normalized.includes('general manager') ||
+    normalized.includes('gm') ||
+    normalized.includes('store manager') ||
+    normalized.includes('cafe manager') ||
+    normalized.includes('restaurant manager') ||
+    normalized.includes('branch manager') ||
+    normalized.includes('manager') ||
+    normalized.includes('supervisor')
+  ) {
     return generateGMPrompt(questionnaire, resumeText);
   }
-  if (normalized.includes('barista')) {
+  if (normalized.includes('barista') && !normalized.includes('cafe staff')) {
     return generateBaristaPrompt(questionnaire, resumeText);
   }
   // Default to Cafe Staff
@@ -644,9 +655,9 @@ function generateEvaluationPrompt(role: string, questionnaire: Record<string, an
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => null);
+    const body = await req.json();
 
-    if (!body || !body.candidateId || !body.resumeUrl) {
+    if (!body.candidateId || !body.resumeUrl) {
       return NextResponse.json(
         { error: 'Missing required parameters candidateId or resumeUrl' },
         { status: 400 }
@@ -675,11 +686,12 @@ export async function POST(req: Request) {
     const questionnaire = candidateRecord?.questionnaire_data || body.questionnaire || {};
     let effectiveRole = candidateRecord?.role || role || 'Cafe Staff';
 
-    // Auto-detect role if questionnaire contains HR or GM indicators
+    // Auto-detect role if questionnaire contains HR or Manager indicators
     const qKeys = Object.keys(questionnaire).join(' ').toLowerCase();
     if (
       qKeys.includes('hr_experience') ||
       qKeys.includes('recruitment_experience') ||
+      qKeys.includes('statutory_compliance') ||
       qKeys.includes('multi_branch') ||
       qKeys.includes('two_wheeler')
     ) {
@@ -687,9 +699,16 @@ export async function POST(req: Request) {
     } else if (
       qKeys.includes('five_plus_years_exp') ||
       qKeys.includes('multi_outlet_managed') ||
-      qKeys.includes('outlet_scale')
+      qKeys.includes('outlet_scale') ||
+      qKeys.includes('managerial_experience') ||
+      qKeys.includes('responsibilities')
     ) {
-      effectiveRole = 'General Manager';
+      effectiveRole = effectiveRole.toLowerCase().includes('manager') ? effectiveRole : 'General Manager';
+    } else if (
+      qKeys.includes('barista_training') ||
+      (effectiveRole.toLowerCase().includes('barista') && !effectiveRole.toLowerCase().includes('cafe staff'))
+    ) {
+      effectiveRole = 'Barista';
     }
 
     // 1. Download the PDF from the Supabase public URL

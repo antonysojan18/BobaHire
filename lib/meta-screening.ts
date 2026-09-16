@@ -43,18 +43,30 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
     formHints.includes('recruitment') ||
     fieldKeys.includes('hr_experience') ||
     fieldKeys.includes('recruitment_experience') ||
+    fieldKeys.includes('statutory_compliance') ||
     fieldKeys.includes('multi_branch') ||
     fieldKeys.includes('two_wheeler');
 
-  // Check for General Manager
+  // Check for General Manager / Cafe Manager / Store Manager
   const isGM =
     !isHR &&
     (explicitRole.includes('general manager') ||
       explicitRole.includes('gm') ||
+      explicitRole.includes('store manager') ||
+      explicitRole.includes('cafe manager') ||
+      explicitRole.includes('restaurant manager') ||
+      explicitRole.includes('branch manager') ||
+      explicitRole.includes('manager') ||
       formHints.includes('general manager') ||
-      formHints.includes('gm') ||
+      formHints.includes('store manager') ||
+      formHints.includes('cafe manager') ||
+      formHints.includes('restaurant manager') ||
+      formHints.includes('branch manager') ||
+      formHints.includes('manager') ||
       fieldKeys.includes('managerial_experience') ||
-      fieldKeys.includes('multi_outlet'));
+      fieldKeys.includes('multi_outlet') ||
+      fieldKeys.includes('managed_multiple_outlets') ||
+      fieldKeys.includes('at_least_5_years'));
 
   const isBaristaOnly =
     !isHR &&

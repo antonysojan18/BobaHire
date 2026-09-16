@@ -160,6 +160,7 @@ export default function AdminDashboard() {
         if (
           qKeys.includes('hr_experience') ||
           qKeys.includes('recruitment_experience') ||
+          qKeys.includes('statutory_compliance') ||
           qKeys.includes('multi_branch') ||
           qKeys.includes('two_wheeler')
         ) {
@@ -171,7 +172,9 @@ export default function AdminDashboard() {
         } else if (
           qKeys.includes('five_plus_years_exp') ||
           qKeys.includes('multi_outlet_managed') ||
-          qKeys.includes('outlet_scale')
+          qKeys.includes('outlet_scale') ||
+          qKeys.includes('managerial_experience') ||
+          qKeys.includes('responsibilities')
         ) {
           if (!c.role || c.role.toLowerCase().includes('cafe') || c.role.toLowerCase().includes('barista')) {
             targetRole = 'General Manager';
@@ -550,7 +553,10 @@ export default function AdminDashboard() {
         allRowHints.includes('general manager') ||
         allRowHints.includes('gm') ||
         allRowHints.includes('store manager') ||
-        allRowHints.includes('restaurant manager')
+        allRowHints.includes('cafe manager') ||
+        allRowHints.includes('restaurant manager') ||
+        allRowHints.includes('branch manager') ||
+        allRowHints.includes('manager')
       ) {
         role = 'General Manager';
       } else if (allRowHints.includes('barista') && !allRowHints.includes('cafe staff')) {
