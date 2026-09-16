@@ -434,6 +434,7 @@ export default function AdminDashboard() {
 
   // Meta Ads CSV / Excel Batch Import Backup System
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('auto');
   const [batchImporting, setBatchImporting] = useState<boolean>(false);
   const [importStatus, setImportStatus] = useState<{
     total: number;
@@ -443,7 +444,7 @@ export default function AdminDashboard() {
     emailsSent: number;
   } | null>(null);
 
-  const parseFileToLeads = async (file: File) => {
+  const parseFileToLeads = async (file: File, selectedRoleOverride: string = 'auto') => {
     const isCsv = file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.txt');
     let workbook: XLSX.WorkBook;
 
@@ -536,35 +537,40 @@ export default function AdminDashboard() {
       }
 
       // 4. Extract Role accurately
-      const formName = safeStr(rowFields.form_name || rowFields.ad_name || rowFields.campaign_name || rowFields.adset_name || '');
-      const jobField = safeStr(rowFields.job_title || rowFields.role || rowFields.what_position_are_you_applying_for || rowFields.position || rowFields.applying_for || '');
-      const allRowHints = `${jobField} ${formName} ${Object.keys(rowFields).join(' ')} ${Object.values(rowFields).join(' ')}`.toLowerCase();
-
       let role = 'Cafe Staff / Barista';
-      if (
-        allRowHints.includes('hr') ||
-        allRowHints.includes('human resource') ||
-        allRowHints.includes('personnel') ||
-        allRowHints.includes('recruiter') ||
-        allRowHints.includes('recruitment')
-      ) {
-        role = 'HR Executive';
-      } else if (
-        allRowHints.includes('general manager') ||
-        allRowHints.includes('gm') ||
-        allRowHints.includes('store manager') ||
-        allRowHints.includes('cafe manager') ||
-        allRowHints.includes('restaurant manager') ||
-        allRowHints.includes('branch manager') ||
-        allRowHints.includes('manager')
-      ) {
-        role = 'General Manager';
-      } else if (allRowHints.includes('barista') && !allRowHints.includes('cafe staff')) {
-        role = 'Barista';
-      } else if (allRowHints.includes('cafe staff') && !allRowHints.includes('barista')) {
-        role = 'Cafe Staff';
-      } else if (jobField) {
-        role = jobField;
+
+      if (selectedRoleOverride && selectedRoleOverride !== 'auto') {
+        role = selectedRoleOverride;
+      } else {
+        const formName = safeStr(rowFields.form_name || rowFields.ad_name || rowFields.campaign_name || rowFields.adset_name || '');
+        const jobField = safeStr(rowFields.job_title || rowFields.role || rowFields.what_position_are_you_applying_for || rowFields.position || rowFields.applying_for || '');
+        const allRowHints = `${jobField} ${formName} ${Object.keys(rowFields).join(' ')} ${Object.values(rowFields).join(' ')}`.toLowerCase();
+
+        if (
+          allRowHints.includes('hr') ||
+          allRowHints.includes('human resource') ||
+          allRowHints.includes('personnel') ||
+          allRowHints.includes('recruiter') ||
+          allRowHints.includes('recruitment')
+        ) {
+          role = 'HR Executive';
+        } else if (
+          allRowHints.includes('general manager') ||
+          allRowHints.includes('gm') ||
+          allRowHints.includes('store manager') ||
+          allRowHints.includes('cafe manager') ||
+          allRowHints.includes('restaurant manager') ||
+          allRowHints.includes('branch manager') ||
+          allRowHints.includes('manager')
+        ) {
+          role = 'General Manager';
+        } else if (allRowHints.includes('barista') && !allRowHints.includes('cafe staff')) {
+          role = 'Barista';
+        } else if (allRowHints.includes('cafe staff') && !allRowHints.includes('barista')) {
+          role = 'Cafe Staff';
+        } else if (jobField) {
+          role = jobField;
+        }
       }
 
       const meta_lead_id = rowFields.id || rowFields.lead_id || rowFields.meta_lead_id || `lead_${Date.now()}_${r}`;
@@ -596,7 +602,7 @@ export default function AdminDashboard() {
     setImportStatus(null);
 
     try {
-      const leads = await parseFileToLeads(csvFile);
+      const leads = await parseFileToLeads(csvFile, uploadRoleOverride);
 
       if (leads.length === 0) {
         alert(
@@ -1239,22 +1245,41 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
           </div>
         </section>
 
-        {/* Simplified Lead Upload Section */}
+        {/* Simplified Lead Upload Section with Role Selector */}
         <section className="rounded-xl border border-border bg-card p-4 shadow-panel space-y-3">
           <p className="text-xs text-muted-foreground">
             Upload candidate lead files (.csv / .xlsx) to evaluate responses, screen qualifications, and dispatch resume upload invites.
           </p>
-          <form onSubmit={handleBatchFileUpload} className="flex flex-col sm:flex-row items-center gap-3">
-            <input
-              type="file"
-              accept=".csv,.txt,.xlsx,.xls"
-              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-              className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#a53861] file:text-white hover:file:bg-[#8c2d50] cursor-pointer border border-input rounded-lg bg-background p-1"
-            />
+          <form onSubmit={handleBatchFileUpload} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <input
+                type="file"
+                accept=".csv,.txt,.xlsx,.xls"
+                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#a53861] file:text-white hover:file:bg-[#8c2d50] cursor-pointer border border-input rounded-lg bg-background p-1"
+              />
+            </div>
+
+            <div className="w-full md:w-64">
+              <select
+                aria-label="Select target role for uploaded leads"
+                value={uploadRoleOverride}
+                onChange={(e) => setUploadRoleOverride(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-[#a53861] h-[36px]"
+              >
+                <option value="auto">🌐 Auto-Detect Role from File</option>
+                <option value="HR Executive">📋 HR Executive</option>
+                <option value="Cafe Staff / Barista">☕ Cafe Staff / Barista</option>
+                <option value="Barista">☕ Barista</option>
+                <option value="Cafe Staff">🥐 Cafe Staff</option>
+                <option value="General Manager">👔 Manager / General Manager</option>
+              </select>
+            </div>
+
             <button
               type="submit"
               disabled={batchImporting || !csvFile}
-              className="inline-flex w-full sm:w-auto items-center justify-center rounded-lg bg-[#a53861] px-6 py-2 text-sm font-bold text-white transition-colors hover:bg-[#8c2d50] disabled:opacity-50 cursor-pointer shrink-0 shadow-xs"
+              className="inline-flex w-full md:w-auto items-center justify-center rounded-lg bg-[#a53861] px-6 py-2 text-sm font-bold text-white transition-colors hover:bg-[#8c2d50] disabled:opacity-50 cursor-pointer shrink-0 shadow-xs h-[36px]"
             >
               <Upload className="mr-2 h-4 w-4" />
               {batchImporting ? 'Evaluating...' : 'Evaluate'}
