@@ -71,6 +71,8 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
   if (isHR) {
     const valExpYears = getFieldValue(
       fields,
+      'how_many_years_of_hr_experience',
+      'how_many_years',
       'years_of_experience',
       'hr_experience',
       'experience_in_hr',
@@ -80,6 +82,8 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
 
     const valMulti = getFieldValue(
       fields,
+      'have_you_managed_hr_across_multiple_branches',
+      'managed_hr_across_multiple_branches',
       'multi_branch',
       'multi_location',
       'multiple_branches',
@@ -93,6 +97,8 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
 
     const valRecruitment = getFieldValue(
       fields,
+      'have_you_handled_recruitment',
+      'handled_recruitment',
       'recruitment_experience',
       'hiring_experience',
       'sourcing_and_hiring',
@@ -103,6 +109,19 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
       valRecruitment.toLowerCase() === 'y' ||
       valRecruitment.toLowerCase() === 'true' ||
       valRecruitment.length > 0;
+
+    const valCompliance = getFieldValue(
+      fields,
+      'have_you_handled_statutory_compliance',
+      'statutory_compliance',
+      'handled_statutory_compliance',
+      'compliance_experience',
+      'compliance'
+    );
+    const hasCompliance =
+      valCompliance.toLowerCase() === 'yes' ||
+      valCompliance.toLowerCase() === 'y' ||
+      valCompliance.toLowerCase() === 'true';
 
     const valMalayalam = getFieldValue(
       fields,
@@ -119,6 +138,8 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
 
     const valMobility = getFieldValue(
       fields,
+      'are_you_comfortable_travelling',
+      'comfortable_travelling',
       'two_wheeler',
       'two_wheeler_available',
       'driving_license',
@@ -130,6 +151,16 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
       valMobility.toLowerCase() === 'y' ||
       valMobility.toLowerCase() === 'true';
 
+    const companyWork = getFieldValue(
+      fields,
+      'company_of_previous_work',
+      'company_of_current_work',
+      'previous_company',
+      'current_company',
+      'company_name',
+      'current_organization'
+    );
+
     return {
       passed: true,
       normalizedRole: 'HR Executive',
@@ -137,9 +168,11 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
         hr_experience_duration: valExpYears,
         multi_branch_experience: multiBranch,
         recruitment_experience: hasRecruitment,
-        malayalam_proficiency: speaksMalayalam,
+        statutory_compliance: hasCompliance,
         two_wheeler_mobility: hasTwoWheelerMobility,
-        home_state: getFieldValue(fields, 'home_state', 'state', 'please_select') || 'Kerala',
+        malayalam_proficiency: speaksMalayalam,
+        previous_company: companyWork || undefined,
+        home_state: getFieldValue(fields, 'please_select_your_home_state', 'home_state', 'state', 'please_select') || 'Kerala',
         residing_city: getFieldValue(fields, 'residing_in_kochi', 'city', 'location') || 'Kochi',
       },
     };
