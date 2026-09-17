@@ -243,7 +243,18 @@ export default function AdminDashboard() {
           }
         }
 
-        return { ...c, role: targetRole };
+        const resolvedScore =
+          typeof c.ai_score === 'number'
+            ? c.ai_score
+            : typeof c.ai_evaluation?.total_score === 'number'
+            ? c.ai_evaluation.total_score
+            : null;
+
+        if (c.ai_score === null && typeof c.ai_evaluation?.total_score === 'number') {
+          supabase.from('candidates').update({ ai_score: c.ai_evaluation.total_score }).eq('id', c.id).then();
+        }
+
+        return { ...c, role: targetRole, ai_score: resolvedScore };
       });
 
       setCandidates(normalizedCandidates);
@@ -1579,6 +1590,22 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                             <MessageSquare className={`mr-1 h-3.5 w-3.5 ${!c.resume_url ? 'text-amber-600' : ''}`} />
                             {!c.resume_url ? 'Remind CV' : 'Message'}
                           </button>
+                          {c.resume_url && (
+                            <button
+                              type="button"
+                              disabled={evaluatingId === c.id}
+                              onClick={() => handleEvaluateCandidate(c)}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer disabled:opacity-40"
+                              title="Run AI Evaluation for this candidate"
+                            >
+                              {evaluatingId === c.id ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="mr-1 h-3.5 w-3.5" />
+                              )}
+                              {c.ai_score === null ? 'Evaluate' : 'Re-Evaluate'}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setActiveModal({ candidate: c, type: 'breakdown' })}
