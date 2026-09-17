@@ -121,12 +121,36 @@ export async function POST(req: Request) {
 
       subject = customSubject || `Message regarding your application for ${role} at BobaLive`;
 
+      // Extract any upload URL or general URL to generate rich links & CTA button
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const uploadUrlMatch = customMessage.match(/https?:\/\/[^\s]+(?:\/upload\?[^\s]+)/i);
+      const detectedUploadUrl = uploadUrlMatch ? uploadUrlMatch[0].replace(/[)\].,;]+$/, '') : null;
+
       const formattedParagraphs = customMessage
         .split('\n')
         .map((p) => p.trim())
         .filter((p) => p.length > 0)
-        .map((p) => `<p style="color: #334155; line-height: 1.6; font-size: 15px; margin: 0 0 14px 0;">${escapeHtml(p)}</p>`)
+        .map((p) => {
+          const escaped = escapeHtml(p);
+          const linked = escaped.replace(
+            urlRegex,
+            (url) =>
+              `<a href="${url}" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: bold; word-break: break-all;">${url}</a>`
+          );
+          return `<p style="color: #334155; line-height: 1.6; font-size: 15px; margin: 0 0 14px 0;">${linked}</p>`;
+        })
         .join('');
+
+      let ctaButtonHtml = '';
+      if (detectedUploadUrl) {
+        ctaButtonHtml = `
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${detectedUploadUrl}" target="_blank" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 13px 28px; border-radius: 8px; font-weight: bold; font-size: 15px; box-shadow: 0 2px 6px rgba(37,99,235,0.3);">
+              📄 Upload Your CV / Resume Now
+            </a>
+          </div>
+        `;
+      }
 
       htmlContent = `
         <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
@@ -138,6 +162,8 @@ export async function POST(req: Request) {
           <div style="margin: 16px 0;">
             ${formattedParagraphs}
           </div>
+
+          ${ctaButtonHtml}
 
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
           <p style="color: #94a3b8; font-size: 12px; margin: 0;">

@@ -252,10 +252,20 @@ export default function AdminDashboard() {
 
   const openMessageModal = (candidate: Candidate) => {
     setMessageCandidate(candidate);
-    setCustomSubject(`Update regarding your application for ${candidate.role} at BobaLive`);
-    setCustomMessage(
-      `Hello ${candidate.name},\n\nWe are reviewing candidate applications for the ${candidate.role} role at BobaLive.\n\n`
-    );
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const uploadUrl = `${baseUrl}/upload?id=${candidate.id}&name=${encodeURIComponent(candidate.name)}&role=${encodeURIComponent(candidate.role)}`;
+
+    if (!candidate.resume_url) {
+      setCustomSubject(`Reminder: Please upload your CV for ${candidate.role} — BobaLive`);
+      setCustomMessage(
+        `Hello ${candidate.name},\n\nThis is a friendly reminder regarding your application for the ${candidate.role} position at BobaLive.\n\nWe noticed that we haven't received your CV / Resume yet. To help our recruitment team review your qualifications and proceed with your application, please upload your resume (PDF) using the secure link below:\n\nUpload CV Link:\n${uploadUrl}\n\nPlease upload your CV as soon as possible so we can proceed with your interview evaluation.\n\nBest regards,\nBobaLive Recruitment Team`
+      );
+    } else {
+      setCustomSubject(`Update regarding your application for ${candidate.role} at BobaLive`);
+      setCustomMessage(
+        `Hello ${candidate.name},\n\nWe are currently reviewing candidate applications for the ${candidate.role} position and wanted to thank you for your interest in BobaLive.\n\nOur team will be in touch with further updates soon.\n\nBest regards,\nBobaLive HR Team`
+      );
+    }
   };
 
   const handleSendCustomMessage = async (e: React.FormEvent) => {
@@ -1451,12 +1461,16 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                           </button>
                           <button
                             type="button"
-                            title={`Send message to ${c.name}`}
+                            title={!c.resume_url ? `Send CV upload reminder to ${c.name}` : `Send message to ${c.name}`}
                             onClick={() => openMessageModal(c)}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted cursor-pointer"
+                            className={`inline-flex items-center px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                              !c.resume_url
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold'
+                                : 'text-foreground hover:bg-muted'
+                            }`}
                           >
-                            <MessageSquare className="mr-1 h-3.5 w-3.5" />
-                            Message
+                            <MessageSquare className={`mr-1 h-3.5 w-3.5 ${!c.resume_url ? 'text-amber-600' : ''}`} />
+                            {!c.resume_url ? 'Remind CV' : 'Message'}
                           </button>
                           <button
                             type="button"
@@ -1845,10 +1859,37 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
             <form onSubmit={handleSendCustomMessage} className="space-y-4">
               {/* Quick Template Presets */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
-                  Quick Message Templates:
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Quick Message Templates:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                      const uploadUrl = `${baseUrl}/upload?id=${messageCandidate.id}&name=${encodeURIComponent(messageCandidate.name)}&role=${encodeURIComponent(messageCandidate.role)}`;
+                      setCustomMessage((prev) => `${prev.trim()}\n\nUpload CV Link:\n${uploadUrl}\n\n`);
+                    }}
+                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    + Insert CV Upload Link
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                      const uploadUrl = `${baseUrl}/upload?id=${messageCandidate.id}&name=${encodeURIComponent(messageCandidate.name)}&role=${encodeURIComponent(messageCandidate.role)}`;
+                      setCustomSubject(`Reminder: Please upload your CV for ${messageCandidate.role} — BobaLive`);
+                      setCustomMessage(
+                        `Hello ${messageCandidate.name},\n\nThis is a friendly reminder regarding your application for the ${messageCandidate.role} position at BobaLive.\n\nWe noticed that we haven't received your CV / Resume yet. To help our recruitment team review your qualifications and proceed with your application, please upload your resume (PDF) using the secure link below:\n\nUpload CV Link:\n${uploadUrl}\n\nPlease upload your CV as soon as possible so we can proceed with your interview evaluation.\n\nBest regards,\nBobaLive Recruitment Team`
+                      );
+                    }}
+                    className="px-2.5 py-1 text-xs font-bold rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 cursor-pointer transition-colors shadow-xs"
+                  >
+                    📤 CV Upload Reminder
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
