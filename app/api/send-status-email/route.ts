@@ -149,15 +149,24 @@ export async function POST(req: Request) {
 
       subject = customSubject || `Message regarding your application for ${role} at BobaLive`;
 
-      // Extract any upload URL or general URL to generate rich links & CTA button
       const urlRegex = /(https?:\/\/[^\s]+)/g;
       const uploadUrlMatch = customMessage.match(/https?:\/\/[^\s]+(?:\/upload\?[^\s]+)/i);
       const detectedUploadUrl = uploadUrlMatch ? uploadUrlMatch[0].replace(/[)\].,;]+$/, '') : null;
+      const uploadUrl = String(body.uploadUrl || '').trim() || detectedUploadUrl;
 
+      // Filter out lines that are purely raw upload link headers/URLs if we're rendering the button
       const formattedParagraphs = customMessage
         .split('\n')
         .map((p) => p.trim())
-        .filter((p) => p.length > 0)
+        .filter((p) => {
+          if (!p) return false;
+          if (uploadUrl) {
+            const low = p.toLowerCase();
+            if (low === 'upload cv link:' || low === 'cv upload link:' || low.startsWith('upload cv link:') || low.startsWith('cv upload link:')) return false;
+            if (p.includes('/upload?') && !p.includes(' ')) return false;
+          }
+          return true;
+        })
         .map((p) => {
           const escaped = escapeHtml(p);
           const linked = escaped.replace(
@@ -170,10 +179,10 @@ export async function POST(req: Request) {
         .join('');
 
       let ctaButtonHtml = '';
-      if (detectedUploadUrl) {
+      if (uploadUrl) {
         ctaButtonHtml = `
-          <div style="text-align: center; margin: 26px 0;">
-            <a href="${detectedUploadUrl}" target="_blank" style="display: inline-block; background-color: #a53861; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(165, 56, 97, 0.25);">
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${uploadUrl}" target="_blank" style="display: inline-block; background-color: #a53861; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(165, 56, 97, 0.25);">
               Upload Your Resume
             </a>
           </div>

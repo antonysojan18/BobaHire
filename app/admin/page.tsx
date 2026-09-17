@@ -318,7 +318,7 @@ export default function AdminDashboard() {
     if (!candidate.resume_url) {
       setCustomSubject(`Reminder: Please upload your CV for ${candidate.role} — BobaLive`);
       setCustomMessage(
-        `Hello ${candidate.name},\n\nThis is a reminder regarding your application for the ${candidate.role} position at BobaLive.\n\nWe noticed that you haven't uploaded your CV / Resume yet. Please click the link below to upload your resume (PDF) so our team can evaluate your profile and proceed with your application:\n\nUpload CV Link:\n${uploadUrl}\n\nIf you have already uploaded your resume, you can safely ignore this email.\n\nBest regards,\nBobaLive Recruitment Team`
+        `Hello ${candidate.name},\n\nThis is a reminder regarding your application for the ${candidate.role} position at BobaLive.\n\nWe noticed that you haven't uploaded your CV / Resume yet. Please click the "Upload Your Resume" button below to submit your resume (PDF) so our team can evaluate your profile and proceed with your application.\n\nIf you have already uploaded your resume or have any questions, you can safely ignore or reply directly to this email.\n\nBest regards,\nBobaLive Recruitment Team`
       );
     } else {
       setCustomSubject(`Update regarding your application for ${candidate.role} at BobaLive`);
@@ -333,6 +333,9 @@ export default function AdminDashboard() {
     if (!messageCandidate || !customMessage.trim()) return;
 
     setSendingCustomMessage(true);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const uploadUrl = `${baseUrl}/upload?id=${messageCandidate.id}&name=${encodeURIComponent(messageCandidate.name)}&role=${encodeURIComponent(messageCandidate.role)}`;
+
     try {
       const res = await fetch('/api/send-status-email', {
         method: 'POST',
@@ -346,6 +349,7 @@ export default function AdminDashboard() {
           action: 'custom',
           customSubject: customSubject.trim() || `Update regarding your application for ${messageCandidate.role} at BobaLive`,
           customMessage: customMessage.trim(),
+          uploadUrl: !messageCandidate.resume_url ? uploadUrl : undefined,
         }),
       });
 
@@ -1982,11 +1986,9 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                   <button
                     type="button"
                     onClick={() => {
-                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-                      const uploadUrl = `${baseUrl}/upload?id=${messageCandidate.id}&name=${encodeURIComponent(messageCandidate.name)}&role=${encodeURIComponent(messageCandidate.role)}`;
                       setCustomSubject(`Reminder: Please upload your CV for ${messageCandidate.role} — BobaLive`);
                       setCustomMessage(
-                        `Hello ${messageCandidate.name},\n\nThis is a reminder regarding your application for the ${messageCandidate.role} position at BobaLive.\n\nWe noticed that we haven't uploaded your CV / Resume yet. Please click the link below to upload your resume (PDF) so our team can evaluate your profile and proceed with your application:\n\nUpload CV Link:\n${uploadUrl}\n\nIf you have already uploaded your resume, you can safely ignore this email.\n\nBest regards,\nBobaLive Recruitment Team`
+                        `Hello ${messageCandidate.name},\n\nThis is a reminder regarding your application for the ${messageCandidate.role} position at BobaLive.\n\nWe noticed that you haven't uploaded your CV / Resume yet. Please click the "Upload Your Resume" button below to submit your resume (PDF) so our team can evaluate your profile and proceed with your application.\n\nIf you have already uploaded your resume or have any questions, you can safely ignore or reply directly to this email.\n\nBest regards,\nBobaLive Recruitment Team`
                       );
                     }}
                     className="px-2.5 py-1 text-xs font-bold rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 cursor-pointer transition-colors shadow-xs"
