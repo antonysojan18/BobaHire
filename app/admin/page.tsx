@@ -2634,36 +2634,47 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
         </div>
       )}
 
-      {/* Floating Batch Action Toolbar for Selected Candidates */}
+      {/* Floating Batch Action Toolbar for Selected Candidates (Glassmorphism & Reddish-Pink Theme) */}
       {selectedCandidates.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#1e293b] text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-700 animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <span className="text-xs font-semibold text-slate-200">
-            <strong className="text-white">{selectedCandidates.length}</strong> candidate(s) selected
-          </span>
-          {candidates.some((c) => selectedCandidates.includes(c.id) && !c.resume_url) && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3.5 sm:gap-5 rounded-2xl border border-white/30 bg-gradient-to-r from-[#a53861]/95 via-[#b8436e]/90 to-[#8c2d50]/95 px-5 py-3 sm:px-6 sm:py-3.5 text-white shadow-[0_12px_40px_rgba(165,56,97,0.45)] backdrop-blur-xl ring-1 ring-white/30 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs sm:text-sm font-bold text-white tracking-tight">
+              <strong>{selectedCandidates.length}</strong> candidate{selectedCandidates.length > 1 ? 's' : ''} selected
+            </span>
+          </div>
+
+          <div className="h-5 w-px bg-white/30" />
+
+          {candidates.some((c) => selectedCandidates.includes(c.id) && !c.resume_url) ? (
             <button
               type="button"
               disabled={batchReminding}
               onClick={() => handleBatchRemindPending()}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-md disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs sm:text-sm font-extrabold text-[#a53861] shadow-md transition-all hover:bg-white/90 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 cursor-pointer"
             >
               {batchReminding ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {remindProgress ? `Reminding (${remindProgress.current}/${remindProgress.total})...` : 'Reminding...'}
+                  <Loader2 className="h-4 w-4 animate-spin text-[#a53861]" />
+                  <span>{remindProgress ? `Reminding (${remindProgress.current}/${remindProgress.total})...` : 'Reminding...'}</span>
                 </>
               ) : (
                 <>
-                  <Send className="h-3.5 w-3.5" />
-                  Send Reminder to Selected ({candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url).length})
+                  <Send className="h-4 w-4 text-[#a53861]" />
+                  <span>Send Reminder to Selected ({candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url).length})</span>
                 </>
               )}
             </button>
+          ) : (
+            <span className="text-xs text-white/85 italic">All selected have uploaded CV</span>
           )}
+
+          <div className="h-5 w-px bg-white/30" />
+
           <button
             type="button"
             onClick={() => setSelectedCandidates([])}
-            className="text-xs font-medium text-slate-400 hover:text-white transition-colors px-2 py-1 rounded-lg cursor-pointer"
+            className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white/85 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
           >
             Clear Selection
           </button>
