@@ -143,6 +143,66 @@ export default function AdminDashboard() {
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
   const [batchEvaluating, setBatchEvaluating] = useState<boolean>(false);
 
+  // Batch Reminder State & Selection
+  const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  const [batchReminding, setBatchReminding] = useState<boolean>(false);
+  const [remindProgress, setRemindProgress] = useState<{ total: number; current: number; currentName: string } | null>(null);
+
+  const toggleSelectCandidate = (id: string) => {
+    setSelectedCandidates((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBatchRemindPending = async (targets?: Candidate[]) => {
+    const toRemind = targets || (selectedCandidates.length > 0
+      ? candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url)
+      : candidates.filter((c) => !c.resume_url));
+
+    if (toRemind.length === 0) {
+      alert('No candidates with pending resumes found to remind.');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to send CV upload reminder emails to ${toRemind.length} pending candidate(s)?`)) {
+      return;
+    }
+
+    setBatchReminding(true);
+    setRemindProgress({ total: toRemind.length, current: 0, currentName: '' });
+    let sentCount = 0;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+    for (let i = 0; i < toRemind.length; i++) {
+      const c = toRemind[i];
+      setRemindProgress({ total: toRemind.length, current: i + 1, currentName: c.name });
+      try {
+        const uploadUrl = `${baseUrl}/upload?id=${c.id}&name=${encodeURIComponent(c.name)}&role=${encodeURIComponent(c.role)}`;
+        const res = await fetch('/api/send-status-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: c.name,
+            email: c.email,
+            phone: c.phone || '',
+            location: c.location || '',
+            role: c.role,
+            action: 'reminder',
+            uploadUrl,
+          }),
+        });
+        if (res.ok) sentCount++;
+      } catch (err) {
+        console.error(`Failed to send reminder email to ${c.email}:`, err);
+      }
+    }
+
+    setBatchReminding(false);
+    setRemindProgress(null);
+    setSelectedCandidates([]);
+    alert(`Successfully sent CV reminder emails to ${sentCount} of ${toRemind.length} candidate(s)!`);
+  };
+
   const fetchCandidates = async () => {
     const { data, error } = await supabase
       .from('candidates')
@@ -258,7 +318,7 @@ export default function AdminDashboard() {
     if (!candidate.resume_url) {
       setCustomSubject(`Reminder: Please upload your CV for ${candidate.role} — BobaLive`);
       setCustomMessage(
-        `Hello ${candidate.name},\n\nThis is a friendly reminder regarding your application for the ${candidate.role} position at BobaLive.\n\nWe noticed that we haven't received your CV / Resume yet. To help our recruitment team review your qualifications and proceed with your application, please upload your resume (PDF) using the secure link below:\n\nUpload CV Link:\n${uploadUrl}\n\nPlease upload your CV as soon as possible so we can proceed with your interview evaluation.\n\nBest regards,\nBobaLive Recruitment Team`
+        `Hello ${candidate.name},\n\nThis is a reminder regarding your application for the ${candidate.role} position at BobaLive.\n\nWe noticed that you haven't uploaded your CV / Resume yet. Please click the link below to upload your resume (PDF) so our team can evaluate your profile and proceed with your application:\n\nUpload CV Link:\n${uploadUrl}\n\nIf you have already uploaded your resume, you can safely ignore this email.\n\nBest regards,\nBobaLive Recruitment Team`
       );
     } else {
       setCustomSubject(`Update regarding your application for ${candidate.role} at BobaLive`);
@@ -1334,15 +1394,39 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
 
         {/* Candidate Leaderboard Table */}
         <section className="rounded-xl border border-border bg-card shadow-panel overflow-hidden">
-          <div className="flex items-center justify-between border-b border-[#4d6a65] bg-[#5f7f7a] px-6 py-4 text-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#4d6a65] bg-[#5f7f7a] px-6 py-4 text-white">
             <h2 className="font-display text-lg font-bold text-white tracking-tight">Candidate Leaderboard</h2>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Batch Remind Pending Resumes Button */}
+              {candidates.some((c) => !c.resume_url) && (
+                <button
+                  type="button"
+                  disabled={batchReminding}
+                  onClick={() => handleBatchRemindPending()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/30 hover:bg-amber-500/40 border border-amber-300/40 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-xs transition-colors cursor-pointer shadow-xs"
+                >
+                  {batchReminding ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {remindProgress ? `Reminding (${remindProgress.current}/${remindProgress.total})...` : 'Reminding...'}
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-3.5 w-3.5 text-amber-200" />
+                      {selectedCandidates.length > 0 && candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url).length > 0
+                        ? `Remind Selected Pending (${candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url).length})`
+                        : `Remind All Pending Resumes (${candidates.filter((c) => !c.resume_url).length})`}
+                    </>
+                  )}
+                </button>
+              )}
+
               {candidates.some((c) => c.resume_url && (c.ai_score === null || !c.ai_evaluation)) && (
                 <button
                   type="button"
                   disabled={batchEvaluating}
                   onClick={handleBatchEvaluatePending}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1 text-xs font-bold text-white backdrop-blur-xs transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/20 hover:bg-white/30 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-xs transition-colors cursor-pointer"
                 >
                   {batchEvaluating ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1359,9 +1443,39 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
           </div>
 
           <div className="overflow-x-auto w-full pb-2">
-            <table className="w-full min-w-[1550px] border-collapse text-sm">
+            <table className="w-full min-w-[1600px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[#5f7f7a]/25 bg-[#5f7f7a]/10 text-left">
+                  <th className="px-3 py-3.5 text-center w-12 border-r border-[#5f7f7a]/25">
+                    <input
+                      type="checkbox"
+                      title="Select / Deselect all pending candidates"
+                      checked={
+                        rows.filter(({ candidate }) => !candidate.resume_url).length > 0 &&
+                        rows
+                          .filter(({ candidate }) => !candidate.resume_url)
+                          .every(({ candidate }) => selectedCandidates.includes(candidate.id))
+                      }
+                      onChange={() => {
+                        const pendingRows = rows.filter(({ candidate }) => !candidate.resume_url);
+                        const allPendingSelected =
+                          pendingRows.length > 0 &&
+                          pendingRows.every(({ candidate }) => selectedCandidates.includes(candidate.id));
+                        if (allPendingSelected) {
+                          setSelectedCandidates((prev) =>
+                            prev.filter((id) => !pendingRows.some(({ candidate }) => candidate.id === id))
+                          );
+                        } else {
+                          const newSet = new Set([
+                            ...selectedCandidates,
+                            ...pendingRows.map(({ candidate }) => candidate.id),
+                          ]);
+                          setSelectedCandidates(Array.from(newSet));
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-border text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] w-20 border-r border-[#5f7f7a]/25">
                     <button type="button" onClick={() => toggleSort('rank')} className="inline-flex items-center gap-1.5 hover:text-[#5f7f7a]">
                       Rank <ArrowUpDown className="h-3.5 w-3.5" />
@@ -1401,13 +1515,26 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
               <tbody className="divide-y divide-border">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center text-sm text-muted-foreground">
+                    <td colSpan={9} className="px-6 py-16 text-center text-sm text-muted-foreground">
                       {searchQuery ? `No candidates match "${searchQuery}".` : 'No candidates match the current filters.'}
                     </td>
                   </tr>
                 ) : (
                   rows.map(({ candidate: c, rank }) => (
-                    <tr key={c.id} className="transition-colors hover:bg-muted/40 divide-x divide-border/60">
+                    <tr
+                      key={c.id}
+                      className={`transition-colors divide-x divide-border/60 ${
+                        selectedCandidates.includes(c.id) ? 'bg-amber-50/40 dark:bg-amber-950/20' : 'hover:bg-muted/40'
+                      }`}
+                    >
+                      <td className="px-3 py-4 text-center border-r border-border/60">
+                        <input
+                          type="checkbox"
+                          checked={selectedCandidates.includes(c.id)}
+                          onChange={() => toggleSelectCandidate(c.id)}
+                          className="h-4 w-4 rounded border-border text-amber-600 focus:ring-amber-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-5 py-4 font-display text-base font-bold text-muted-foreground border-r border-border/60">
                         {rank !== null ? `#${rank}` : '—'}
                       </td>
@@ -1883,7 +2010,7 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                       const uploadUrl = `${baseUrl}/upload?id=${messageCandidate.id}&name=${encodeURIComponent(messageCandidate.name)}&role=${encodeURIComponent(messageCandidate.role)}`;
                       setCustomSubject(`Reminder: Please upload your CV for ${messageCandidate.role} — BobaLive`);
                       setCustomMessage(
-                        `Hello ${messageCandidate.name},\n\nThis is a friendly reminder regarding your application for the ${messageCandidate.role} position at BobaLive.\n\nWe noticed that we haven't received your CV / Resume yet. To help our recruitment team review your qualifications and proceed with your application, please upload your resume (PDF) using the secure link below:\n\nUpload CV Link:\n${uploadUrl}\n\nPlease upload your CV as soon as possible so we can proceed with your interview evaluation.\n\nBest regards,\nBobaLive Recruitment Team`
+                        `Hello ${messageCandidate.name},\n\nThis is a reminder regarding your application for the ${messageCandidate.role} position at BobaLive.\n\nWe noticed that we haven't uploaded your CV / Resume yet. Please click the link below to upload your resume (PDF) so our team can evaluate your profile and proceed with your application:\n\nUpload CV Link:\n${uploadUrl}\n\nIf you have already uploaded your resume, you can safely ignore this email.\n\nBest regards,\nBobaLive Recruitment Team`
                       );
                     }}
                     className="px-2.5 py-1 text-xs font-bold rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 cursor-pointer transition-colors shadow-xs"

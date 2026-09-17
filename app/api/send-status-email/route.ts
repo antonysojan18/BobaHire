@@ -103,7 +103,35 @@ export async function POST(req: Request) {
     let htmlContent = '';
     let icsContent = '';
 
-    if (action === 'custom' || action === 'message') {
+    if (action === 'reminder') {
+      const uploadUrl = String(body.uploadUrl || '').trim();
+      subject = `Reminder: Please upload your CV for ${role} — BobaLive`;
+      htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #a53861; margin: 0; font-size: 24px;">BobaLive Careers</h2>
+            <p style="color: #64748b; margin: 4px 0 0 0; font-size: 14px;">Next Generation Hospitality Hiring</p>
+          </div>
+          <p style="color: #334155; font-size: 16px; line-height: 1.6;">
+            Hello <strong>${name}</strong>,
+          </p>
+          <p style="color: #334155; font-size: 15px; line-height: 1.6;">
+            This is a reminder regarding your application for the <strong>${role}</strong> position at BobaLive.
+          </p>
+          <p style="color: #334155; font-size: 15px; line-height: 1.6;">
+            Please click the button below to upload your resume (PDF) so our recruitment team can evaluate your profile and proceed with your application:
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${uploadUrl}" style="background-color: #a53861; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 10px rgba(165, 56, 97, 0.25);">
+              Upload Your Resume
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            If you did not apply for this position or have already submitted your CV, you can safely ignore this email.
+          </p>
+        </div>
+      `;
+    } else if (action === 'custom' || action === 'message') {
       if (!customMessage) {
         return NextResponse.json(
           { error: 'Message content cannot be empty' },
@@ -135,7 +163,7 @@ export async function POST(req: Request) {
           const linked = escaped.replace(
             urlRegex,
             (url) =>
-              `<a href="${url}" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: bold; word-break: break-all;">${url}</a>`
+              `<a href="${url}" target="_blank" style="color: #a53861; text-decoration: underline; font-weight: bold; word-break: break-all;">${url}</a>`
           );
           return `<p style="color: #334155; line-height: 1.6; font-size: 15px; margin: 0 0 14px 0;">${linked}</p>`;
         })
@@ -144,19 +172,19 @@ export async function POST(req: Request) {
       let ctaButtonHtml = '';
       if (detectedUploadUrl) {
         ctaButtonHtml = `
-          <div style="text-align: center; margin: 24px 0;">
-            <a href="${detectedUploadUrl}" target="_blank" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 13px 28px; border-radius: 8px; font-weight: bold; font-size: 15px; box-shadow: 0 2px 6px rgba(37,99,235,0.3);">
-              📄 Upload Your CV / Resume Now
+          <div style="text-align: center; margin: 26px 0;">
+            <a href="${detectedUploadUrl}" target="_blank" style="display: inline-block; background-color: #a53861; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(165, 56, 97, 0.25);">
+              Upload Your Resume
             </a>
           </div>
         `;
       }
 
       htmlContent = `
-        <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-          <div style="border-bottom: 2px solid #5f7f7a; padding-bottom: 12px; margin-bottom: 18px;">
-            <h2 style="color: #1e293b; margin: 0; font-size: 20px;">BobaLive Recruitment</h2>
-            <p style="color: #5f7f7a; font-size: 13px; font-weight: bold; margin: 4px 0 0 0;">Position: ${escapeHtml(role)}</p>
+        <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #a53861; margin: 0; font-size: 24px;">BobaLive Careers</h2>
+            <p style="color: #64748b; margin: 4px 0 0 0; font-size: 14px;">Next Generation Hospitality Hiring</p>
           </div>
           
           <div style="margin: 16px 0;">
@@ -166,7 +194,7 @@ export async function POST(req: Request) {
           ${ctaButtonHtml}
 
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0; text-align: center;">
             Best regards,<br/>
             <strong style="color: #475569;">BobaLive Recruitment Team</strong>
           </p>
