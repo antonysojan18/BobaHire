@@ -2087,25 +2087,9 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                   })()}
 
                   {/* Total Score Banner */}
-                  <div className="flex items-center justify-between rounded-xl border border-border bg-card p-4 shadow-xs">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total AI Evaluation Score</p>
-                      <p className="font-display text-3xl font-black text-foreground">{activeModal.candidate.ai_score ?? 0}<span className="text-sm font-semibold text-muted-foreground"> / 100</span></p>
-                    </div>
-                    {activeModal.candidate.ai_evaluation.recommendation && (
-                      <div className="text-right">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground block mb-0.5">Recommendation</span>
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold border ${
-                          activeModal.candidate.ai_evaluation.recommendation.includes('Strongly')
-                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                            : activeModal.candidate.ai_evaluation.recommendation.includes('Recommended')
-                            ? 'bg-blue-100 text-blue-900 border-blue-300'
-                            : 'bg-rose-100 text-rose-900 border-rose-300'
-                        }`}>
-                          {activeModal.candidate.ai_evaluation.recommendation}
-                        </span>
-                      </div>
-                    )}
+                  <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total AI Evaluation Score</p>
+                    <p className="font-display text-3xl font-black text-foreground">{activeModal.candidate.ai_score ?? 0}<span className="text-sm font-semibold text-muted-foreground"> / 100</span></p>
                   </div>
 
                   {/* Mandatory Eligibility Card (if available) */}
