@@ -280,6 +280,23 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Evaluation failed');
+
+      if (data?.evaluation) {
+        setActiveModal((prev) =>
+          prev && prev.candidate.id === candidate.id
+            ? {
+                ...prev,
+                candidate: {
+                  ...prev.candidate,
+                  ai_score: data.evaluation.total_score,
+                  ai_evaluation: data.evaluation,
+                  status: 'reviewed',
+                },
+              }
+            : prev
+        );
+      }
+
       await fetchCandidates();
     } catch (err: any) {
       alert(`AI Evaluation Error: ${err.message}`);
@@ -1590,22 +1607,6 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                             <MessageSquare className={`mr-1 h-3.5 w-3.5 ${!c.resume_url ? 'text-amber-600' : ''}`} />
                             {!c.resume_url ? 'Remind CV' : 'Message'}
                           </button>
-                          {c.resume_url && (
-                            <button
-                              type="button"
-                              disabled={evaluatingId === c.id}
-                              onClick={() => handleEvaluateCandidate(c)}
-                              className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors cursor-pointer disabled:opacity-40"
-                              title="Run AI Evaluation for this candidate"
-                            >
-                              {evaluatingId === c.id ? (
-                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Sparkles className="mr-1 h-3.5 w-3.5" />
-                              )}
-                              {c.ai_score === null ? 'Evaluate' : 'Re-Evaluate'}
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => setActiveModal({ candidate: c, type: 'breakdown' })}
@@ -2158,17 +2159,41 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                   {activeModal.candidate.email} • {activeModal.candidate.role} • {activeModal.candidate.location || 'Remote'}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveModal(null);
-                  setCriteriaCategoryFilter('all');
-                  setCriteriaSearchQuery('');
-                }}
-                className="text-muted-foreground hover:text-foreground text-xl font-bold p-1 rounded-lg transition-colors cursor-pointer"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2.5">
+                {activeModal.candidate.resume_url && (
+                  <button
+                    type="button"
+                    disabled={evaluatingId === activeModal.candidate.id}
+                    onClick={() => handleEvaluateCandidate(activeModal.candidate)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                    title="Run or re-run AI evaluation for this candidate"
+                  >
+                    {evaluatingId === activeModal.candidate.id ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Evaluating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>{activeModal.candidate.ai_score === null ? 'Evaluate' : 'Re-Evaluate'}</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveModal(null);
+                    setCriteriaCategoryFilter('all');
+                    setCriteriaSearchQuery('');
+                  }}
+                  className="text-muted-foreground hover:text-foreground text-xl font-bold p-1 rounded-lg transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="space-y-5 overflow-y-auto pr-1">
