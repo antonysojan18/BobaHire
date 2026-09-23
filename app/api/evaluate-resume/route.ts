@@ -27,6 +27,31 @@ const aiModel = isGroq
 const openai = new OpenAI({ apiKey: apiKey || 'dummy-key', baseURL });
 
 /**
+ * Executes AI completion with automatic retries and exponential backoff for 503/500/429 status codes.
+ */
+async function callOpenAIWithRetry(params: any, retries = 3, initialDelayMs = 1500): Promise<any> {
+  let lastErr: any;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await openai.chat.completions.create(params);
+    } catch (err: any) {
+      lastErr = err;
+      const status = err?.status || err?.statusCode;
+      console.warn(`[AI Eval] Attempt ${attempt}/${retries} failed (status ${status}):`, err?.message || err);
+      // Non-retryable client errors
+      if (status === 400 || status === 401) {
+        throw err;
+      }
+      if (attempt < retries) {
+        const backoff = initialDelayMs * Math.pow(1.8, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+/**
  * Generate evaluation prompt for BARISTA role (35 criteria)
  */
 function generateBaristaPrompt(questionnaire: Record<string, any>, resumeText: string): string {
@@ -747,10 +772,10 @@ export async function POST(req: Request) {
     // 3. Generate dynamic role-aware system prompt
     const prompt = generateEvaluationPrompt(effectiveRole, questionnaire, extractedText);
 
-    // 4. Run the evaluation through AI safely
+    // 4. Run the evaluation through AI safely with retry handling
     let aiEvaluation: any;
     try {
-      const completion = await openai.chat.completions.create({
+      const completion = await callOpenAIWithRetry({
         model: aiModel,
         response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
@@ -758,12 +783,17 @@ export async function POST(req: Request) {
       });
 
       const rawContent = completion.choices[0]?.message?.content || '{}';
-      const cleanedJson = rawContent
-        .replace(/^```json\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim();
+      let jsonStr = rawContent.trim();
+      if (jsonStr.includes('```')) {
+        jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      }
+      const firstBrace = jsonStr.indexOf('{');
+      const lastBrace = jsonStr.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1) {
+        jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+      }
 
-      aiEvaluation = JSON.parse(cleanedJson);
+      aiEvaluation = JSON.parse(jsonStr);
     } catch (openAiErr: any) {
       console.error('AI Evaluation Error:', openAiErr);
       if (openAiErr?.code === 'credit_balance_exhausted' || openAiErr?.status === 429) {
@@ -776,20 +806,32 @@ export async function POST(req: Request) {
         );
       }
       return NextResponse.json(
-        { error: `AI Evaluation failed: ${openAiErr.message}` },
+        { error: `AI Evaluation failed: ${openAiErr.message || 'Service temporarily unavailable (503). Please retry.'}` },
         { status: 500 }
       );
     }
 
     // Ensure score and breakdown structure are sanitized with defaults
-    const totalScore = typeof aiEvaluation.total_score === 'number' ? aiEvaluation.total_score : 0;
+    const expPoints = Number(aiEvaluation?.criteria_breakdown?.experience_points) || 0;
+    const skillPoints = Number(aiEvaluation?.criteria_breakdown?.skills_points) || 0;
+    const commPoints = Number(aiEvaluation?.criteria_breakdown?.communication_points) || 0;
+    const stabPoints = Number(aiEvaluation?.criteria_breakdown?.stability_education_points) || 0;
+    const computedSum = expPoints + skillPoints + commPoints + stabPoints;
+
+    let totalScore = 0;
+    if (typeof aiEvaluation?.total_score === 'number' && !isNaN(aiEvaluation.total_score) && aiEvaluation.total_score > 0) {
+      totalScore = Math.min(100, Math.max(0, Math.round(aiEvaluation.total_score)));
+    } else if (computedSum > 0) {
+      totalScore = Math.min(100, Math.max(0, Math.round(computedSum)));
+    }
+
     const sanitizedEvaluation = {
       total_score: totalScore,
       criteria_breakdown: {
-        experience_points: aiEvaluation.criteria_breakdown?.experience_points ?? 0,
-        skills_points: aiEvaluation.criteria_breakdown?.skills_points ?? 0,
-        communication_points: aiEvaluation.criteria_breakdown?.communication_points ?? 0,
-        stability_education_points: aiEvaluation.criteria_breakdown?.stability_education_points ?? 0,
+        experience_points: expPoints,
+        skills_points: skillPoints,
+        communication_points: commPoints,
+        stability_education_points: stabPoints,
       },
       mandatory_eligibility: aiEvaluation.mandatory_eligibility || {
         minimum_1_year_qsr_verified: true,

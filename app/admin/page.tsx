@@ -16,6 +16,7 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  Mail,
   MessageSquare,
   RefreshCw,
   Search,
@@ -282,13 +283,27 @@ export default function AdminDashboard() {
       if (!res.ok) throw new Error(data.error || 'Evaluation failed');
 
       if (data?.evaluation) {
+        const newScore = data.evaluation.total_score;
+        setCandidates((prev) =>
+          prev.map((c) =>
+            c.id === candidate.id
+              ? {
+                  ...c,
+                  ai_score: newScore,
+                  ai_evaluation: data.evaluation,
+                  status: 'reviewed',
+                }
+              : c
+          )
+        );
+
         setActiveModal((prev) =>
           prev && prev.candidate.id === candidate.id
             ? {
                 ...prev,
                 candidate: {
                   ...prev.candidate,
-                  ai_score: data.evaluation.total_score,
+                  ai_score: newScore,
                   ai_evaluation: data.evaluation,
                   status: 'reviewed',
                 },
@@ -2201,18 +2216,41 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                 <h4 className="font-display text-base font-bold text-foreground flex items-center gap-2">
                   <span>📊</span> AI Evaluation & Verification Report
                 </h4>
-                {/* Verification Indicator */}
-                {activeModal.candidate.ai_evaluation && (
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
-                    (activeModal.candidate.ai_evaluation as any)?.meta_verification_status === 'Discrepancy Noted'
-                      ? 'bg-amber-100 text-amber-900 border-amber-300'
-                      : (activeModal.candidate.ai_evaluation as any)?.meta_verification_status === 'Unverified'
-                      ? 'bg-slate-100 text-slate-800 border-slate-300'
-                      : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                  }`}>
-                    Verification: {(activeModal.candidate.ai_evaluation as any)?.meta_verification_status || 'Verified'}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* Verification Indicator */}
+                  {activeModal.candidate.ai_evaluation && (
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
+                      (activeModal.candidate.ai_evaluation as any)?.meta_verification_status === 'Discrepancy Noted'
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : (activeModal.candidate.ai_evaluation as any)?.meta_verification_status === 'Unverified'
+                        ? 'bg-slate-100 text-slate-800 border-slate-300'
+                        : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    }`}>
+                      Verification: {(activeModal.candidate.ai_evaluation as any)?.meta_verification_status || 'Verified'}
+                    </span>
+                  )}
+                  {activeModal.candidate.resume_url && (
+                    <button
+                      type="button"
+                      disabled={evaluatingId === activeModal.candidate.id}
+                      onClick={() => handleEvaluateCandidate(activeModal.candidate)}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                      title="Run or re-run AI evaluation for this candidate"
+                    >
+                      {evaluatingId === activeModal.candidate.id ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Evaluating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <span>{activeModal.candidate.ai_score === null && !activeModal.candidate.ai_evaluation ? 'Evaluate' : 'Re-Evaluate'}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Lead Form Summary Card */}
@@ -2285,9 +2323,44 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                   })()}
 
                   {/* Total Score Banner */}
-                  <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total AI Evaluation Score</p>
-                    <p className="font-display text-3xl font-black text-foreground">{activeModal.candidate.ai_score ?? 0}<span className="text-sm font-semibold text-muted-foreground"> / 100</span></p>
+                  <div className="rounded-xl border border-border bg-card p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total AI Evaluation Score</p>
+                      <p className="font-display text-3xl font-black text-foreground">
+                        {typeof activeModal.candidate.ai_score === 'number'
+                          ? activeModal.candidate.ai_score
+                          : typeof activeModal.candidate.ai_evaluation?.total_score === 'number'
+                          ? activeModal.candidate.ai_evaluation.total_score
+                          : activeModal.candidate.ai_evaluation?.criteria_breakdown
+                          ? (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.experience_points) || 0) +
+                            (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.skills_points) || 0) +
+                            (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.communication_points) || 0) +
+                            (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.stability_education_points) || 0)
+                          : 0}
+                        <span className="text-sm font-semibold text-muted-foreground"> / 100</span>
+                      </p>
+                    </div>
+                    {activeModal.candidate.resume_url && (
+                      <button
+                        type="button"
+                        disabled={evaluatingId === activeModal.candidate.id}
+                        onClick={() => handleEvaluateCandidate(activeModal.candidate)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-all disabled:opacity-50 cursor-pointer shadow-xs"
+                        title="Re-run AI evaluation and recalculate scores"
+                      >
+                        {evaluatingId === activeModal.candidate.id ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            <span>Re-evaluating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>Re-Evaluate Score</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {/* Mandatory Eligibility Card (if available) */}
@@ -2595,9 +2668,55 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                       </div>
                     )}
                 </>
+              ) : activeModal.candidate.resume_url ? (
+                <div className="rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-8 text-center space-y-4 my-4">
+                  <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary text-2xl">
+                    📄
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="font-display text-base font-bold text-foreground">Resume Uploaded & Ready for AI Evaluation</h5>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      This candidate has uploaded their CV, but the AI criteria scoring has not been processed yet or needs to be refreshed.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={evaluatingId === activeModal.candidate.id}
+                    onClick={() => handleEvaluateCandidate(activeModal.candidate)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-5 py-2.5 text-xs font-bold text-white shadow-md transition-all disabled:opacity-50 cursor-pointer hover:shadow-lg"
+                  >
+                    {evaluatingId === activeModal.candidate.id ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Scoring Criteria & Generating Report...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        <span>Run AI Evaluation & Show Score</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               ) : (
-                <div className="py-12 text-center text-xs text-muted-foreground">
-                  No AI evaluation yet. Candidate has not submitted a resume.
+                <div className="rounded-2xl border border-border bg-muted/20 p-8 text-center space-y-3 my-4">
+                  <div className="mx-auto w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-lg">
+                    ⏳
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="font-display text-sm font-bold text-foreground">No Resume Submitted Yet</h5>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      Candidate has received an invitation but has not yet uploaded their CV/Resume.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openMessageModal(activeModal.candidate)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card hover:bg-muted px-3.5 py-1.5 text-xs font-semibold text-foreground cursor-pointer transition-colors shadow-xs"
+                  >
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Send Upload Reminder</span>
+                  </button>
                 </div>
               )}
             </div>
