@@ -730,10 +730,16 @@ export async function POST(req: Request) {
     ) {
       effectiveRole = effectiveRole.toLowerCase().includes('manager') ? effectiveRole : 'General Manager';
     } else if (
-      qKeys.includes('barista_training') ||
-      (effectiveRole.toLowerCase().includes('barista') && !effectiveRole.toLowerCase().includes('cafe staff'))
+      effectiveRole.toLowerCase() === 'barista' ||
+      (effectiveRole.toLowerCase().includes('barista') && !effectiveRole.toLowerCase().includes('cafe staff')) ||
+      qKeys.includes('barista_training')
     ) {
       effectiveRole = 'Barista';
+    } else if (
+      effectiveRole.toLowerCase().includes('cafe') ||
+      effectiveRole.toLowerCase().includes('staff')
+    ) {
+      effectiveRole = 'Cafe Staff';
     }
 
     // 1. Download the PDF from the Supabase public URL

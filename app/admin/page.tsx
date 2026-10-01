@@ -242,6 +242,36 @@ export default function AdminDashboard() {
             // Sync database asynchronously
             supabase.from('candidates').update({ role: 'General Manager' }).eq('id', c.id).then();
           }
+        } else if (
+          targetRole === 'Cafe Staff / Barista' ||
+          targetRole?.toLowerCase().includes('cafe staff / barista') ||
+          !targetRole
+        ) {
+          if (
+            qKeys.includes('barista_training') ||
+            q.barista_training ||
+            c.name?.toLowerCase().includes('barista') ||
+            (c.role && c.role.toLowerCase().includes('barista') && !c.role.toLowerCase().includes('cafe staff'))
+          ) {
+            targetRole = 'Barista';
+          } else {
+            targetRole = 'Cafe Staff';
+          }
+          // Sync database asynchronously
+          supabase.from('candidates').update({ role: targetRole }).eq('id', c.id).then();
+        } else if (
+          targetRole?.toLowerCase().includes('barista') &&
+          !targetRole?.toLowerCase().includes('cafe staff') &&
+          targetRole !== 'Barista'
+        ) {
+          targetRole = 'Barista';
+          supabase.from('candidates').update({ role: 'Barista' }).eq('id', c.id).then();
+        } else if (
+          (targetRole?.toLowerCase().includes('cafe') || targetRole?.toLowerCase().includes('staff')) &&
+          targetRole !== 'Cafe Staff'
+        ) {
+          targetRole = 'Cafe Staff';
+          supabase.from('candidates').update({ role: 'Cafe Staff' }).eq('id', c.id).then();
         }
 
         const resolvedScore =
@@ -749,7 +779,9 @@ export default function AdminDashboard() {
   const downloadSampleCSV = () => {
     const sampleCsv = `full_name,email,phone_number,job_title,city,state,do_you_have_at_least_5_years,have_you_previously_managed_multiple_outlets,which_best_describes_your_previous_managerial_experience,are_you_currently_residing_in_kochi,do_you_have_prior_experience_in_fast_food,are_you_comfortable_managing_both_bubble_tea
 Rahul Nair,rahul.nair.meta@example.com,+919876543210,General Manager,Kochi,Kerala,yes,yes,managed_5_or_more_outlets,yes,yes,yes
-Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,Kochi,Kerala,no,no,none,yes,yes,yes`;
+Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Barista,Kochi,Kerala,no,no,none,yes,yes,yes
+Arjun Menon,arjun.menon.meta@example.com,+919876543212,Cafe Staff,Kochi,Kerala,no,no,none,yes,yes,yes
+Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala,no,no,none,yes,no,no`;
 
     const blob = new Blob([sampleCsv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1352,7 +1384,8 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
               >
                 <option value="HR Executive">HR Executive</option>
                 <option value="General Manager">Manager</option>
-                <option value="Cafe Staff / Barista">Cafe Staff / Barista</option>
+                <option value="Cafe Staff">Cafe Staff</option>
+                <option value="Barista">Barista</option>
               </select>
             </div>
 
@@ -1565,7 +1598,19 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                         <p className="font-semibold text-foreground">{c.name}</p>
                         <p className="text-xs text-muted-foreground">{c.email}</p>
                       </td>
-                      <td className="px-5 py-4 border-r border-border/60">{c.role}</td>
+                      <td className="px-5 py-4 border-r border-border/60">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                          c.role?.toLowerCase().includes('hr') || c.role?.toLowerCase().includes('human resource')
+                            ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                            : c.role?.toLowerCase().includes('general manager') || c.role?.toLowerCase().includes('gm') || c.role?.toLowerCase().includes('manager')
+                            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
+                            : c.role?.toLowerCase().includes('barista')
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                            : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                        }`}>
+                          {c.role}
+                        </span>
+                      </td>
                       <td className="px-5 py-4 text-muted-foreground border-r border-border/60">{c.location || 'Remote'}</td>
                       <td className="px-5 py-4 text-xs font-medium text-muted-foreground border-r border-border/60">
                         {formatDateSubmitted(c.created_at)}
@@ -2276,7 +2321,8 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                   {/* Scores Grid */}
                   {(() => {
                     const isHR = activeModal.candidate.role.toLowerCase().includes('hr') || activeModal.candidate.role.toLowerCase().includes('human resource');
-                    const isGM = activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm');
+                    const isGM = activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm') || activeModal.candidate.role.toLowerCase().includes('manager');
+                    const isBarista = activeModal.candidate.role.toLowerCase().includes('barista');
 
                     const items = isHR
                       ? [
@@ -2292,10 +2338,17 @@ Ananya Sharma,ananya.sharma.meta@example.com,+919876543211,Cafe Staff / Barista,
                           { label: 'QSR / Cafe Relevance', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 20 },
                           { label: 'Consistency & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 20 },
                         ]
+                      : isBarista
+                      ? [
+                          { label: 'Barista & F&B Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
+                          { label: 'Coffee & Boba Craft', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                          { label: 'Customer Service & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                          { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                        ]
                       : [
-                          { label: 'Experience', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
-                          { label: 'Core Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
-                          { label: 'Communication', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                          { label: 'QSR & Cafe Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
+                          { label: 'Operations & Service Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                          { label: 'Customer Handling & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
                           { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
                         ];
 

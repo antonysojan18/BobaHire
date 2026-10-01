@@ -57,7 +57,7 @@ async function processCandidateLead(
   const name = String(leadData.name || '').trim() || 'Candidate';
   const email = String(leadData.email || '').trim().toLowerCase();
   const phone = String(leadData.phone || '').trim();
-  const roleInput = String(leadData.roleInput || 'Cafe Staff / Barista').trim();
+  const roleInput = String(leadData.roleInput || 'Cafe Staff').trim();
   const metaLeadId = String(leadData.metaLeadId || '').trim();
   const homeState = String(leadData.homeState || 'Kerala').trim();
   const residingCity = String(leadData.residingCity || 'Kochi').trim();

@@ -68,17 +68,12 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
       fieldKeys.includes('managed_multiple_outlets') ||
       fieldKeys.includes('at_least_5_years'));
 
-  const isBaristaOnly =
+  const isBarista =
     !isHR &&
     !isGM &&
-    ((explicitRole.includes('barista') && !explicitRole.includes('cafe staff')) ||
-      (formHints.includes('barista') && !formHints.includes('cafe staff')));
-
-  const isCafeStaffOnly =
-    !isHR &&
-    !isGM &&
-    ((explicitRole.includes('cafe staff') && !explicitRole.includes('barista')) ||
-      (formHints.includes('cafe staff') && !formHints.includes('barista')));
+    (explicitRole.includes('barista') ||
+      formHints.includes('barista') ||
+      fieldKeys.includes('barista'));
 
   if (isHR) {
     const valExpYears = getFieldValue(
@@ -212,7 +207,7 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
       },
     };
   } else {
-    // Cafe Staff / Barista
+    // Cafe Staff or Barista
     const valQSR = getFieldValue(fields, 'prior_experience_in_fast_food', 'qsr_experience', 'fast_food');
     const hasQSR = valQSR.toLowerCase() === 'yes' || valQSR.toLowerCase() === 'y' || valQSR.toLowerCase() === 'true';
 
@@ -224,20 +219,28 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
     const valBrand = getFieldValue(fields, 'worked_at_any_cafe', 'worked_at_any_cafes', 'qsr_brands', 'brand_experience');
     const brandExp = valBrand.toLowerCase() === 'yes' || valBrand.toLowerCase() === 'y' || valBrand.toLowerCase() === 'true';
 
-    let assignedRole = 'Cafe Staff / Barista';
-    if (isBaristaOnly) assignedRole = 'Barista';
-    else if (isCafeStaffOnly) assignedRole = 'Cafe Staff';
+    const assignedRole = isBarista ? 'Barista' : 'Cafe Staff';
+
+    const questionnaire: Record<string, any> = {
+      qsr_experience: hasQSR,
+      experience_duration: expYears,
+      bubble_tea_and_coffee_ready: beverageHandling,
+      top_brand_experience: brandExp,
+      home_state: getFieldValue(fields, 'home_state', 'state', 'please_select') || 'Kerala',
+    };
+
+    const valBaristaCourse = getFieldValue(fields, 'barista_training', 'barista_course', 'completed_barista_training', 'barista_qualification', 'barista_certified');
+    if (valBaristaCourse) {
+      questionnaire.barista_training =
+        valBaristaCourse.toLowerCase() === 'yes' ||
+        valBaristaCourse.toLowerCase() === 'y' ||
+        valBaristaCourse.toLowerCase() === 'true';
+    }
 
     return {
       passed: true, // Direct processing for all leads
       normalizedRole: assignedRole,
-      questionnaire: {
-        qsr_experience: hasQSR,
-        experience_duration: expYears,
-        bubble_tea_and_coffee_ready: beverageHandling,
-        top_brand_experience: brandExp,
-        home_state: getFieldValue(fields, 'home_state', 'state', 'please_select') || 'Kerala',
-      },
+      questionnaire,
     };
   }
 }
