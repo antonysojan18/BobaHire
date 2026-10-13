@@ -4,6 +4,7 @@ import { evaluateMetaScreening } from '@/lib/meta-screening';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { getAppBaseUrl } from '@/lib/url';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 /**
  * 1. META WEBHOOK VERIFICATION (GET)
@@ -15,10 +16,13 @@ export async function GET(req: Request) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN || 'bobahire_secret_token_2026';
+  const VERIFY_TOKEN =
+    process.env.META_WEBHOOK_VERIFY_TOKEN ||
+    process.env.WHATSAPP_VERIFY_TOKEN ||
+    'bobahire_secret_token_2026';
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('Meta Webhook verified successfully.');
+    console.log('Meta / WhatsApp Webhook verified successfully.');
     return new Response(challenge, { status: 200 });
   }
 
@@ -96,6 +100,29 @@ async function processCandidateLead(
 
     if (existingRecords && existingRecords.length > 0) {
       candidateData = existingRecords[0];
+
+      // If a phone number is provided in this lead upload, automatically update it in Supabase
+      if (phone && candidateData.phone !== phone) {
+        try {
+          const { data: updatedRecord } = await supabase
+            .from('candidates')
+            .update({
+              phone,
+              meta_lead_id: metaLeadId || candidateData.meta_lead_id,
+            })
+            .eq('id', candidateData.id)
+            .select();
+
+          if (updatedRecord && updatedRecord.length > 0) {
+            candidateData = updatedRecord[0];
+          } else {
+            candidateData.phone = phone;
+          }
+        } catch (updateErr) {
+          console.warn('Could not update existing candidate phone:', updateErr);
+          candidateData.phone = phone;
+        }
+      }
     }
   } catch (checkErr) {
     console.warn('Pre-check candidate error:', checkErr);
@@ -221,9 +248,30 @@ async function processCandidateLead(
     }
   }
 
+  // Dispatch WhatsApp resume upload invite if phone number is available
+  let whatsappDispatched = false;
+  let whatsappResult: any = null;
+
+  if (phone) {
+    try {
+      whatsappResult = await sendWhatsAppMessage({
+        name,
+        phone,
+        role: screening.normalizedRole,
+        uploadUrl,
+        type: 'invite',
+      });
+      whatsappDispatched = !!whatsappResult?.success;
+    } catch (waErr) {
+      console.error('WhatsApp dispatch error in Meta Lead Webhook:', waErr);
+    }
+  }
+
   return {
     candidateId: candidateData.id,
     emailDispatched,
+    whatsappDispatched,
+    whatsappResult,
     normalizedRole: screening.normalizedRole,
     questionnaire: screening.questionnaire,
   };
@@ -239,6 +287,11 @@ export async function POST(req: Request) {
 
     if (!body) {
       return NextResponse.json({ error: 'Invalid JSON request payload' }, { status: 400 });
+    }
+
+    // Support WhatsApp Business Account events if unified with page webhook
+    if (body.object === 'whatsapp_business_account') {
+      return new Response('EVENT_RECEIVED', { status: 200 });
     }
 
     // A. Native Meta Webhook Event Format

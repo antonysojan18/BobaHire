@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 
 import { getAppBaseUrl } from '@/lib/url';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 export async function POST(req: Request) {
   try {
@@ -160,7 +161,33 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, candidateId: candidateData.id });
+    // 4. Dispatch WhatsApp invite if phone number is provided
+    let whatsappDispatched = false;
+    let whatsappResult: any = null;
+
+    if (phone) {
+      try {
+        whatsappResult = await sendWhatsAppMessage({
+          name,
+          phone,
+          role,
+          uploadUrl,
+          type: 'invite',
+        });
+        whatsappDispatched = !!whatsappResult?.success;
+      } catch (waErr) {
+        console.error('WhatsApp send error during manual invite:', waErr);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      candidateId: candidateData.id,
+      emailDispatched: true,
+      whatsappDispatched,
+      whatsappResult,
+      uploadUrl,
+    });
   } catch (err: any) {
     console.error('Send Invite Error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });

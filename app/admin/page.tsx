@@ -12,12 +12,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Copy,
   Download,
   FileSpreadsheet,
   FileText,
   Loader2,
   Mail,
   MessageSquare,
+  Phone,
+  PhoneCall,
   RefreshCw,
   Search,
   Send,
@@ -115,6 +118,14 @@ export default function AdminDashboard() {
   const [customSubject, setCustomSubject] = useState<string>('');
   const [customMessage, setCustomMessage] = useState<string>('');
   const [sendingCustomMessage, setSendingCustomMessage] = useState<boolean>(false);
+  const [messageChannel, setMessageChannel] = useState<'both' | 'email' | 'whatsapp'>('both');
+  const [sendingWhatsappId, setSendingWhatsappId] = useState<string | null>(null);
+
+  // Direct Call Modal State
+  const [callCandidate, setCallCandidate] = useState<Candidate | null>(null);
+  const [copiedPhone, setCopiedPhone] = useState<boolean>(false);
+  const [customPhoneInput, setCustomPhoneInput] = useState<string>('');
+  const [savingCandidatePhone, setSavingCandidatePhone] = useState<boolean>(false);
 
   // Status Action Confirmation Modal State
   const [confirmAction, setConfirmAction] = useState<{
@@ -165,13 +176,19 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (!confirm(`Are you sure you want to send CV upload reminder emails to ${toRemind.length} pending candidate(s)?`)) {
+    const hasPhones = toRemind.some((c) => !!c.phone);
+    const confirmText = hasPhones
+      ? `Send CV upload reminders to ${toRemind.length} pending candidate(s)?\n\nReminders will be dispatched via Email and WhatsApp (for candidates with phone number).`
+      : `Are you sure you want to send CV upload reminder emails to ${toRemind.length} pending candidate(s)?`;
+
+    if (!confirm(confirmText)) {
       return;
     }
 
     setBatchReminding(true);
     setRemindProgress({ total: toRemind.length, current: 0, currentName: '' });
     let sentCount = 0;
+    let waSentCount = 0;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
     for (let i = 0; i < toRemind.length; i++) {
@@ -189,10 +206,15 @@ export default function AdminDashboard() {
             location: c.location || '',
             role: c.role,
             action: 'reminder',
+            sendWhatsapp: !!c.phone,
             uploadUrl,
           }),
         });
-        if (res.ok) sentCount++;
+        if (res.ok) {
+          sentCount++;
+          const data = await res.json().catch(() => ({}));
+          if (data.whatsappDispatched) waSentCount++;
+        }
       } catch (err) {
         console.error(`Failed to send reminder email to ${c.email}:`, err);
       }
@@ -201,7 +223,7 @@ export default function AdminDashboard() {
     setBatchReminding(false);
     setRemindProgress(null);
     setSelectedCandidates([]);
-    alert(`Successfully sent CV reminder emails to ${sentCount} of ${toRemind.length} candidate(s)!`);
+    alert(`Successfully sent CV reminders to ${sentCount} of ${toRemind.length} candidate(s)${waSentCount > 0 ? ` (${waSentCount} also received via WhatsApp)` : ''}!`);
   };
 
   const fetchCandidates = async () => {
@@ -401,6 +423,52 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSendWhatsAppInvite = async (candidate: Candidate) => {
+    if (!candidate.phone) {
+      alert(`Candidate ${candidate.name} does not have a phone number on file.`);
+      return;
+    }
+
+    setSendingWhatsappId(candidate.id);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const uploadUrl = `${baseUrl}/upload?id=${candidate.id}&name=${encodeURIComponent(candidate.name)}&role=${encodeURIComponent(candidate.role)}`;
+
+    try {
+      const res = await fetch('/api/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: candidate.id,
+          name: candidate.name,
+          phone: candidate.phone,
+          role: candidate.role,
+          uploadUrl,
+          action: !candidate.resume_url ? 'invite' : 'reminder',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok && !data.waLink) {
+        throw new Error(data.error || 'Failed to dispatch WhatsApp message');
+      }
+
+      if (data.success && data.channel === 'cloud_api') {
+        alert(`✅ WhatsApp resume upload link successfully sent to ${candidate.name} (${data.phone || candidate.phone})!`);
+      } else if (data.waLink) {
+        const shouldOpen = confirm(
+          `WhatsApp message prepared for ${candidate.name} (${candidate.phone})!\n\n${data.notConfigured ? 'Notice: WhatsApp Cloud API is running in direct link mode.\n\n' : ''}Would you like to open WhatsApp Web to send this message directly?`
+        );
+        if (shouldOpen) {
+          window.open(data.waLink, '_blank');
+        }
+      }
+    } catch (err: any) {
+      alert(`WhatsApp dispatch error: ${err.message}`);
+    } finally {
+      setSendingWhatsappId(null);
+    }
+  };
+
   const handleSendCustomMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageCandidate || !customMessage.trim()) return;
@@ -410,28 +478,76 @@ export default function AdminDashboard() {
     const uploadUrl = `${baseUrl}/upload?id=${messageCandidate.id}&name=${encodeURIComponent(messageCandidate.name)}&role=${encodeURIComponent(messageCandidate.role)}`;
 
     try {
-      const res = await fetch('/api/send-status-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: messageCandidate.name,
-          email: messageCandidate.email,
-          phone: messageCandidate.phone || '',
-          location: messageCandidate.location || '',
-          role: messageCandidate.role,
-          action: 'custom',
-          customSubject: customSubject.trim() || `Update regarding your application for ${messageCandidate.role} at BobaLive`,
-          customMessage: customMessage.trim(),
-          uploadUrl: !messageCandidate.resume_url ? uploadUrl : undefined,
-        }),
-      });
+      let emailSuccess = false;
+      let waSuccess = false;
+      let waLink: string | null = null;
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to send message');
+      // 1. Dispatch Email if requested
+      if (messageChannel === 'email' || messageChannel === 'both') {
+        const res = await fetch('/api/send-status-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: messageCandidate.name,
+            email: messageCandidate.email,
+            phone: messageCandidate.phone || '',
+            location: messageCandidate.location || '',
+            role: messageCandidate.role,
+            action: 'custom',
+            customSubject: customSubject.trim() || `Update regarding your application for ${messageCandidate.role} at BobaLive`,
+            customMessage: customMessage.trim(),
+            uploadUrl: !messageCandidate.resume_url ? uploadUrl : undefined,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to send email');
+        }
+        emailSuccess = true;
       }
 
-      alert(`Message successfully sent to ${messageCandidate.name} (${messageCandidate.email})!`);
+      // 2. Dispatch WhatsApp if requested
+      if ((messageChannel === 'whatsapp' || messageChannel === 'both') && messageCandidate.phone) {
+        const res = await fetch('/api/send-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateId: messageCandidate.id,
+            name: messageCandidate.name,
+            phone: messageCandidate.phone,
+            role: messageCandidate.role,
+            action: 'custom',
+            customMessage: customMessage.trim(),
+            uploadUrl: !messageCandidate.resume_url ? uploadUrl : undefined,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.success && data.channel === 'cloud_api') {
+          waSuccess = true;
+        } else if (data.waLink) {
+          waLink = data.waLink;
+        }
+      }
+
+      let summary = `Message dispatched to ${messageCandidate.name}!`;
+      if (emailSuccess && waSuccess) {
+        summary = `Message successfully sent via both Email (${messageCandidate.email}) and WhatsApp (${messageCandidate.phone})!`;
+      } else if (emailSuccess) {
+        summary = `Message successfully sent via Email to ${messageCandidate.email}!`;
+      } else if (waSuccess) {
+        summary = `Message successfully sent via WhatsApp to ${messageCandidate.phone}!`;
+      }
+
+      alert(summary);
+
+      if (waLink && !waSuccess && (messageChannel === 'whatsapp' || messageChannel === 'both')) {
+        if (confirm('Would you like to open WhatsApp Web to send this message directly?')) {
+          window.open(waLink, '_blank');
+        }
+      }
+
       setMessageCandidate(null);
       setCustomSubject('');
       setCustomMessage('');
@@ -439,6 +555,33 @@ export default function AdminDashboard() {
       alert(`Error sending message: ${err.message}`);
     } finally {
       setSendingCustomMessage(false);
+    }
+  };
+
+  const handleSavePhone = async (candidateId: string, phoneToSave: string) => {
+    if (!phoneToSave.trim()) return;
+    setSavingCandidatePhone(true);
+    try {
+      const cleanPhone = phoneToSave.trim();
+      const { error } = await supabase
+        .from('candidates')
+        .update({ phone: cleanPhone })
+        .eq('id', candidateId);
+
+      if (error) throw error;
+
+      setCandidates((prev) =>
+        prev.map((c) => (c.id === candidateId ? { ...c, phone: cleanPhone } : c))
+      );
+      if (callCandidate && callCandidate.id === candidateId) {
+        setCallCandidate((prev) => (prev ? { ...prev, phone: cleanPhone } : null));
+      }
+      setCustomPhoneInput('');
+      alert('Candidate phone number saved and updated successfully!');
+    } catch (err: any) {
+      alert(`Failed to save phone number: ${err.message}`);
+    } finally {
+      setSavingCandidatePhone(false);
     }
   };
 
@@ -676,12 +819,53 @@ export default function AdminDashboard() {
 
       email = email.toLowerCase().trim();
 
-      // 3. Extract Phone
-      let phone = rowFields.phone_number || rowFields.phone || rowFields.contact_number || '';
+      // 3. Extract Phone (Supports all Meta Ads export variations and cell scanning)
+      let phone =
+        rowFields.phone_number ||
+        rowFields.phone ||
+        rowFields.contact_number ||
+        rowFields.mobile ||
+        rowFields.mobile_number ||
+        rowFields.phone_no ||
+        rowFields.contact_no ||
+        rowFields.what_is_your_phone_number ||
+        rowFields.enter_your_phone_number ||
+        rowFields.primary_phone ||
+        rowFields.contact ||
+        rowFields.telephone ||
+        rowFields.cell ||
+        rowFields.whatsapp ||
+        rowFields.whatsapp_number ||
+        '';
+
       if (!phone) {
-        const phoneColIdx = normalizedHeaders.findIndex((h) => h.includes('phone') || h.includes('mobile'));
-        if (phoneColIdx !== -1 && row[phoneColIdx]) phone = safeStr(row[phoneColIdx]);
+        const phoneColIdx = normalizedHeaders.findIndex(
+          (h) =>
+            h.includes('phone') ||
+            h.includes('mobile') ||
+            h.includes('contact') ||
+            h.includes('cell') ||
+            h.includes('tel')
+        );
+        if (phoneColIdx !== -1 && row[phoneColIdx]) {
+          phone = safeStr(row[phoneColIdx]);
+        }
       }
+
+      // If still not found by header, scan cells for a plausible 10-15 digit phone string
+      if (!phone) {
+        for (const cell of row) {
+          const s = safeStr(cell).replace(/^p:/i, '').trim();
+          const cleanDigits = s.replace(/\D/g, '');
+          if (cleanDigits.length >= 10 && cleanDigits.length <= 15 && !s.includes('@')) {
+            phone = s;
+            break;
+          }
+        }
+      }
+
+      // Strip Meta lead ad prefixes like 'p:+91...' or 'p:91...'
+      phone = phone.replace(/^p:/i, '').trim();
 
       // 4. Assign selected role
       const role = selectedRoleOverride || 'HR Executive';
@@ -1597,6 +1781,16 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       <td className="px-5 py-4 border-r border-border/60">
                         <p className="font-semibold text-foreground">{c.name}</p>
                         <p className="text-xs text-muted-foreground">{c.email}</p>
+                        {c.phone && (
+                          <a
+                            href={`tel:${c.phone.replace(/[^+\d]/g, '')}`}
+                            title="Click number to call directly"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 hover:underline mt-0.5 cursor-pointer"
+                          >
+                            <Phone className="h-3 w-3" />
+                            <span>{c.phone}</span>
+                          </a>
+                        )}
                       </td>
                       <td className="px-5 py-4 border-r border-border/60">{c.role}</td>
                       <td className="px-5 py-4 text-muted-foreground border-r border-border/60">{c.location || 'Remote'}</td>
@@ -1654,6 +1848,38 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                           >
                             <MessageSquare className={`mr-1 h-3.5 w-3.5 ${!c.resume_url ? 'text-amber-600' : ''}`} />
                             {!c.resume_url ? 'Remind CV' : 'Message'}
+                          </button>
+                          {c.phone && !c.resume_url && (
+                            <button
+                              type="button"
+                              title={`Send Resume Upload Link via WhatsApp to ${c.name} (${c.phone})`}
+                              disabled={sendingWhatsappId === c.id}
+                              onClick={() => handleSendWhatsAppInvite(c)}
+                              className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer"
+                            >
+                              {sendingWhatsappId === c.id ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin text-emerald-600" />
+                              ) : (
+                                <span className="mr-1 text-[13px]">💬</span>
+                              )}
+                              WhatsApp CV
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            title={c.phone ? `Direct Call: ${c.name} (${c.phone})` : `No phone number on record for ${c.name}`}
+                            onClick={() => {
+                              setCallCandidate(c);
+                              setCopiedPhone(false);
+                              setCustomPhoneInput(c.phone || '');
+                            }}
+                            className={`inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                              c.phone
+                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
+                                : 'text-muted-foreground hover:bg-muted opacity-60'
+                            }`}
+                          >
+                            <Phone className="h-3.5 w-3.5 text-emerald-600" />
                           </button>
                           <button
                             type="button"
@@ -2120,18 +2346,65 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 </div>
               </div>
 
-              {/* Subject Input */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">Email Subject</label>
-                <input
-                  type="text"
-                  required
-                  value={customSubject}
-                  onChange={(e) => setCustomSubject(e.target.value)}
-                  placeholder="Subject line..."
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
-                />
+              {/* Dispatch Channel Selector */}
+              <div className="rounded-xl border border-border bg-muted/30 p-2.5 space-y-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Delivery Channel:
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
+                    <input
+                      type="radio"
+                      name="channel"
+                      value="both"
+                      checked={messageChannel === 'both'}
+                      onChange={() => setMessageChannel('both')}
+                      className="text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <span>⚡ Both (Email & WhatsApp)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
+                    <input
+                      type="radio"
+                      name="channel"
+                      value="email"
+                      checked={messageChannel === 'email'}
+                      onChange={() => setMessageChannel('email')}
+                      className="text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <span>📧 Email Only</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer">
+                    <input
+                      type="radio"
+                      name="channel"
+                      value="whatsapp"
+                      checked={messageChannel === 'whatsapp'}
+                      onChange={() => setMessageChannel('whatsapp')}
+                      disabled={!messageCandidate.phone}
+                      className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <span className={!messageCandidate.phone ? 'text-muted-foreground opacity-50' : ''}>
+                      💬 WhatsApp Only {!messageCandidate.phone && '(No Phone on file)'}
+                    </span>
+                  </label>
+                </div>
               </div>
+
+              {/* Subject Input (Only needed if email is selected) */}
+              {messageChannel !== 'whatsapp' && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Email Subject</label>
+                  <input
+                    type="text"
+                    required
+                    value={customSubject}
+                    onChange={(e) => setCustomSubject(e.target.value)}
+                    placeholder="Subject line..."
+                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
+                  />
+                </div>
+              )}
 
               {/* Message Body */}
               <div className="space-y-1.5">
@@ -2145,37 +2418,222 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   className="w-full rounded-xl border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs resize-y"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  The message will be formatted with official BobaLive branding and dispatched directly to <strong>{messageCandidate.email}</strong>.
+                  {messageChannel === 'whatsapp' ? (
+                    <>Dispatches formatted message with URL preview directly to WhatsApp: <strong>{messageCandidate.phone || 'N/A'}</strong>.</>
+                  ) : messageChannel === 'email' ? (
+                    <>Formatted with BobaLive branding and dispatched to <strong>{messageCandidate.email}</strong>.</>
+                  ) : (
+                    <>Dispatches to both Email (<strong>{messageCandidate.email}</strong>) and WhatsApp (<strong>{messageCandidate.phone || 'None'}</strong>).</>
+                  )}
                 </p>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setMessageCandidate(null)}
-                  className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={sendingCustomMessage || !customMessage.trim()}
-                  className="inline-flex items-center rounded-md bg-amber-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50 cursor-pointer shadow-xs"
-                >
-                  {sendingCustomMessage ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="mr-2 h-4 w-4" />
-                      Send Message
-                    </>
-                  )}
-                </button>
+              <div className="flex justify-between items-center pt-2 border-t border-border">
+                {messageCandidate.phone ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+                      const uploadUrl = `${baseUrl}/upload?id=${messageCandidate.id}&name=${encodeURIComponent(messageCandidate.name)}&role=${encodeURIComponent(messageCandidate.role)}`;
+                      const waText = `${customMessage.trim()}${!messageCandidate.resume_url ? `\n\n👉 Upload Resume (PDF):\n${uploadUrl}` : ''}`;
+                      const cleanPhone = (messageCandidate.phone || '').replace(/\D/g, '');
+                      const normalizedPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+                      window.open(`https://wa.me/${normalizedPhone}?text=${encodeURIComponent(waText)}`, '_blank');
+                    }}
+                    title="Open chat directly in WhatsApp Web with pre-filled message"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition-colors cursor-pointer"
+                  >
+                    <span>💬</span>
+                    <span>Open WhatsApp Web</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setMessageCandidate(null)}
+                    className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sendingCustomMessage || !customMessage.trim()}
+                    className={`inline-flex items-center rounded-md px-5 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs ${
+                      messageChannel === 'whatsapp' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
+                  >
+                    {sendingCustomMessage ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        {messageChannel === 'whatsapp' ? 'Send WhatsApp' : messageChannel === 'email' ? 'Send Email' : 'Send Both'}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Direct Call & Contact Candidate Modal */}
+      {callCandidate && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6 space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-start border-b border-border pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
+                  <PhoneCall className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-foreground">
+                    Direct Call
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {callCandidate.name} • <span className="font-medium text-foreground">{callCandidate.role}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCallCandidate(null)}
+                className="text-muted-foreground hover:text-foreground text-lg font-bold p-1 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {callCandidate.phone ? (
+              <div className="space-y-4">
+                {/* Main Clickable Number Card */}
+                <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-950/30 p-4 transition-all">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-1">
+                    Phone Number (Click to Call Directly)
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <a
+                      href={`tel:${callCandidate.phone.replace(/[^+\d]/g, '')}`}
+                      title="Click number to dial directly"
+                      className="font-mono text-2xl font-black text-emerald-900 dark:text-emerald-200 tracking-tight hover:underline flex items-center gap-2 cursor-pointer"
+                    >
+                      <Phone className="h-5 w-5 text-emerald-600 inline shrink-0" />
+                      <span>{callCandidate.phone}</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                          navigator.clipboard.writeText(callCandidate.phone || '');
+                          setCopiedPhone(true);
+                          setTimeout(() => setCopiedPhone(false), 2000);
+                        }
+                      }}
+                      title="Copy phone number"
+                      className="px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-white dark:bg-card hover:bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>{copiedPhone ? 'Copied!' : 'Copy'}</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Click the phone number above or the green Call button below to launch your device dialer.
+                  </p>
+                </div>
+
+                {/* Direct Call & WhatsApp Action Buttons */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <a
+                    href={`tel:${callCandidate.phone.replace(/[^+\d]/g, '')}`}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 shadow-sm hover:shadow transition-all text-sm cursor-pointer"
+                  >
+                    <PhoneCall className="h-4 w-4" />
+                    <span>Call Now</span>
+                  </a>
+                  <a
+                    href={`https://wa.me/${(callCandidate.phone || '').replace(/\D/g, '').length === 10 ? `91${(callCandidate.phone || '').replace(/\D/g, '')}` : (callCandidate.phone || '').replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold py-3 px-4 shadow-xs transition-colors text-sm cursor-pointer"
+                  >
+                    <span className="text-base">💬</span>
+                    <span>WhatsApp</span>
+                  </a>
+                </div>
+
+                {/* Quick Edit Phone in DB */}
+                <div className="pt-2 border-t border-border">
+                  <details className="text-xs text-muted-foreground group">
+                    <summary className="cursor-pointer hover:text-foreground font-semibold flex items-center gap-1">
+                      <span>✏️ Update or edit phone number</span>
+                    </summary>
+                    <div className="flex gap-2 mt-2 pt-1">
+                      <input
+                        type="text"
+                        placeholder="Enter corrected phone..."
+                        defaultValue={callCandidate.phone}
+                        onChange={(e) => setCustomPhoneInput(e.target.value)}
+                        className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground"
+                      />
+                      <button
+                        type="button"
+                        disabled={savingCandidatePhone}
+                        onClick={() => handleSavePhone(callCandidate.id, customPhoneInput || callCandidate.phone || '')}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer"
+                      >
+                        {savingCandidatePhone ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-center py-2">
+                <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 flex items-center justify-center mx-auto text-xl">
+                  📵
+                </div>
+                <div className="space-y-1">
+                  <p className="font-semibold text-foreground text-sm">
+                    No Phone Number on Record
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    This candidate has no phone number in the database yet. You can upload the Meta leads Excel file to update it automatically, or enter it manually below:
+                  </p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. 9876543210 or +91 98765 43210"
+                    value={customPhoneInput}
+                    onChange={(e) => setCustomPhoneInput(e.target.value)}
+                    className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={savingCandidatePhone || !customPhoneInput.trim()}
+                    onClick={() => handleSavePhone(callCandidate.id, customPhoneInput)}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {savingCandidatePhone ? 'Saving...' : 'Save & Call'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end border-t border-border">
+              <button
+                type="button"
+                onClick={() => setCallCandidate(null)}
+                className="rounded-lg border border-border bg-background hover:bg-muted px-4 py-1.5 text-xs font-semibold text-foreground cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2750,14 +3208,31 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       Candidate has received an invitation but has not yet uploaded their CV/Resume.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => openMessageModal(activeModal.candidate)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card hover:bg-muted px-3.5 py-1.5 text-xs font-semibold text-foreground cursor-pointer transition-colors shadow-xs"
-                  >
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>Send Upload Reminder</span>
-                  </button>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openMessageModal(activeModal.candidate)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card hover:bg-muted px-3.5 py-1.5 text-xs font-semibold text-foreground cursor-pointer transition-colors shadow-xs"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Send Email Reminder</span>
+                    </button>
+                    {activeModal.candidate.phone && (
+                      <button
+                        type="button"
+                        disabled={sendingWhatsappId === activeModal.candidate.id}
+                        onClick={() => handleSendWhatsAppInvite(activeModal.candidate)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-1.5 text-xs font-semibold text-emerald-800 cursor-pointer transition-colors shadow-xs"
+                      >
+                        {sendingWhatsappId === activeModal.candidate.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
+                        ) : (
+                          <span className="text-xs">💬</span>
+                        )}
+                        <span>Send WhatsApp CV Link</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

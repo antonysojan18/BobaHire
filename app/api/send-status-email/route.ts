@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 function formatUtcIcsDate(date: Date): string {
   return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
@@ -446,7 +447,34 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    // Optional WhatsApp dispatch for reminder or when requested
+    let whatsappDispatched = false;
+    let whatsappResult: any = null;
+    const shouldSendWhatsapp = (action === 'reminder' || body.sendWhatsapp) && phone;
+
+    if (shouldSendWhatsapp) {
+      const uploadUrl = String(body.uploadUrl || '').trim();
+      try {
+        whatsappResult = await sendWhatsAppMessage({
+          name,
+          phone,
+          role,
+          uploadUrl,
+          type: action === 'reminder' ? 'reminder' : 'custom',
+          customMessage: action !== 'reminder' ? customMessage : undefined,
+        });
+        whatsappDispatched = !!whatsappResult?.success;
+      } catch (waErr) {
+        console.error('WhatsApp send error in send-status-email:', waErr);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      emailDispatched: true,
+      whatsappDispatched,
+      whatsappResult,
+    });
   } catch (err: any) {
     console.error('Send Status Email Error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
