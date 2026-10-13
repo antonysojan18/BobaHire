@@ -1861,7 +1861,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                           )}
                           <button
                             type="button"
-                            title={c.phone ? `Direct Call: ${c.name} (${c.phone})` : `No phone number on record for ${c.name}`}
+                            title={c.phone ? `Call: ${c.name} (${c.phone})` : `No phone number on record for ${c.name}`}
                             onClick={() => {
                               setCallCandidate(c);
                               setCopiedPhone(false);
@@ -2483,7 +2483,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 </div>
                 <div>
                   <h3 className="font-display text-lg font-bold text-foreground">
-                    Direct Call
+                    Call
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     {callCandidate.name} • <span className="font-medium text-foreground">{callCandidate.role}</span>
@@ -2504,7 +2504,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 {/* Main Clickable Number Card */}
                 <div className="rounded-2xl border border-border bg-muted/40 p-4 transition-all">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                    Phone Number (Click to Call Directly)
+                    Phone Number
                   </p>
                   <div className="flex items-center justify-between gap-2">
                     <a
