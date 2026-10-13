@@ -1781,16 +1781,6 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       <td className="px-5 py-4 border-r border-border/60">
                         <p className="font-semibold text-foreground">{c.name}</p>
                         <p className="text-xs text-muted-foreground">{c.email}</p>
-                        {c.phone && (
-                          <a
-                            href={`tel:${c.phone.replace(/[^+\d]/g, '')}`}
-                            title="Click number to call directly"
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 hover:underline mt-0.5 cursor-pointer"
-                          >
-                            <Phone className="h-3 w-3" />
-                            <span>{c.phone}</span>
-                          </a>
-                        )}
                       </td>
                       <td className="px-5 py-4 border-r border-border/60">{c.role}</td>
                       <td className="px-5 py-4 text-muted-foreground border-r border-border/60">{c.location || 'Remote'}</td>
@@ -1847,7 +1837,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                             }`}
                           >
                             <MessageSquare className={`mr-1 h-3.5 w-3.5 ${!c.resume_url ? 'text-amber-600' : ''}`} />
-                            {!c.resume_url ? 'Remind CV' : 'Message'}
+                            {!c.resume_url ? 'Remind' : 'Message'}
                           </button>
                           {c.phone && !c.resume_url && (
                             <button
@@ -1857,12 +1847,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                               onClick={() => handleSendWhatsAppInvite(c)}
                               className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer"
                             >
-                              {sendingWhatsappId === c.id ? (
+                              {sendingWhatsappId === c.id && (
                                 <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin text-emerald-600" />
-                              ) : (
-                                <span className="mr-1 text-[13px]">💬</span>
                               )}
-                              WhatsApp CV
+                              WhatsApp
                             </button>
                           )}
                           <button
@@ -1873,13 +1861,9 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                               setCopiedPhone(false);
                               setCustomPhoneInput(c.phone || '');
                             }}
-                            className={`inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                              c.phone
-                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
-                                : 'text-muted-foreground hover:bg-muted opacity-60'
-                            }`}
+                            className="inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
                           >
-                            <Phone className="h-3.5 w-3.5 text-emerald-600" />
+                            <Phone className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
@@ -2385,7 +2369,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       className="text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                     <span className={!messageCandidate.phone ? 'text-muted-foreground opacity-50' : ''}>
-                      💬 WhatsApp Only {!messageCandidate.phone && '(No Phone on file)'}
+                      WhatsApp Only {!messageCandidate.phone && '(No Phone on file)'}
                     </span>
                   </label>
                 </div>
@@ -2441,9 +2425,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       window.open(`https://wa.me/${normalizedPhone}?text=${encodeURIComponent(waText)}`, '_blank');
                     }}
                     title="Open chat directly in WhatsApp Web with pre-filled message"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-800 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background hover:bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition-colors cursor-pointer"
                   >
-                    <span>💬</span>
                     <span>Open WhatsApp Web</span>
                   </button>
                 ) : <div />}
@@ -2488,8 +2471,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           <div className="bg-card rounded-2xl border border-border max-w-md w-full p-6 space-y-5 shadow-2xl my-8">
             <div className="flex justify-between items-start border-b border-border pb-3.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
-                  <PhoneCall className="h-5 w-5" />
+                <div className="w-9 h-9 rounded-full bg-muted text-foreground flex items-center justify-center">
+                  <PhoneCall className="h-4 w-4" />
                 </div>
                 <div>
                   <h3 className="font-display text-lg font-bold text-foreground">
@@ -2512,17 +2495,17 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
             {callCandidate.phone ? (
               <div className="space-y-4">
                 {/* Main Clickable Number Card */}
-                <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-950/30 p-4 transition-all">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-1">
+                <div className="rounded-2xl border border-border bg-muted/40 p-4 transition-all">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                     Phone Number (Click to Call Directly)
                   </p>
                   <div className="flex items-center justify-between gap-2">
                     <a
                       href={`tel:${callCandidate.phone.replace(/[^+\d]/g, '')}`}
                       title="Click number to dial directly"
-                      className="font-mono text-2xl font-black text-emerald-900 dark:text-emerald-200 tracking-tight hover:underline flex items-center gap-2 cursor-pointer"
+                      className="font-mono text-2xl font-black text-foreground tracking-tight hover:underline flex items-center gap-2 cursor-pointer"
                     >
-                      <Phone className="h-5 w-5 text-emerald-600 inline shrink-0" />
+                      <Phone className="h-5 w-5 text-muted-foreground inline shrink-0" />
                       <span>{callCandidate.phone}</span>
                     </a>
                     <button
@@ -2535,14 +2518,14 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                         }
                       }}
                       title="Copy phone number"
-                      className="px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-white dark:bg-card hover:bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                      className="px-2.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-foreground text-xs font-semibold flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
                     >
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>{copiedPhone ? 'Copied!' : 'Copy'}</span>
                     </button>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-2">
-                    Click the phone number above or the green Call button below to launch your device dialer.
+                    Click the phone number above or the Call button below to launch your device dialer.
                   </p>
                 </div>
 
@@ -2559,9 +2542,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     href={`https://wa.me/${(callCandidate.phone || '').replace(/\D/g, '').length === 10 ? `91${(callCandidate.phone || '').replace(/\D/g, '')}` : (callCandidate.phone || '').replace(/\D/g, '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold py-3 px-4 shadow-xs transition-colors text-sm cursor-pointer"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-bold py-3 px-4 shadow-xs transition-colors text-sm cursor-pointer"
                   >
-                    <span className="text-base">💬</span>
                     <span>WhatsApp</span>
                   </a>
                 </div>
@@ -3224,12 +3206,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                         onClick={() => handleSendWhatsAppInvite(activeModal.candidate)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-3.5 py-1.5 text-xs font-semibold text-emerald-800 cursor-pointer transition-colors shadow-xs"
                       >
-                        {sendingWhatsappId === activeModal.candidate.id ? (
+                        {sendingWhatsappId === activeModal.candidate.id && (
                           <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
-                        ) : (
-                          <span className="text-xs">💬</span>
                         )}
-                        <span>Send WhatsApp CV Link</span>
+                        <span>WhatsApp</span>
                       </button>
                     )}
                   </div>
