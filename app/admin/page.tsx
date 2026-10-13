@@ -161,6 +161,11 @@ export default function AdminDashboard() {
   const [emailProgress, setEmailProgress] = useState<{ total: number; current: number; currentName: string } | null>(null);
   const [batchWhatsAppSending, setBatchWhatsAppSending] = useState<boolean>(false);
   const [whatsAppProgress, setWhatsAppProgress] = useState<{ total: number; current: number; currentName: string } | null>(null);
+  const [batchWhatsAppItems, setBatchWhatsAppItems] = useState<Array<{
+    candidate: Candidate;
+    waLink: string;
+    opened: boolean;
+  }> | null>(null);
 
   const toggleSelectCandidate = (id: string) => {
     setSelectedCandidates((prev) =>
@@ -236,18 +241,11 @@ export default function AdminDashboard() {
       return;
     }
 
-    const confirmMsg = noPhoneCount > 0
-      ? `Send resume upload link via WhatsApp to ${toSend.length} candidate(s)?\n\n(${noPhoneCount} candidate(s) without phone numbers will be skipped.)`
-      : `Send resume upload link via WhatsApp to ${toSend.length} candidate(s)?`;
-
-    if (!confirm(confirmMsg)) {
-      return;
-    }
-
     setBatchWhatsAppSending(true);
     setWhatsAppProgress({ total: toSend.length, current: 0, currentName: '' });
-    let sentCount = 0;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const preparedItems: Array<{ candidate: Candidate; waLink: string; opened: boolean }> = [];
+    let cloudApiSentCount = 0;
 
     for (let i = 0; i < toSend.length; i++) {
       const c = toSend[i];
@@ -267,21 +265,58 @@ export default function AdminDashboard() {
           }),
         });
 
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (data.success || data.waLink) {
-            sentCount++;
-          }
+        const data = await res.json().catch(() => ({}));
+        if (data.success && data.channel === 'cloud_api') {
+          cloudApiSentCount++;
+        } else if (data.waLink) {
+          preparedItems.push({
+            candidate: c,
+            waLink: data.waLink,
+            opened: false,
+          });
         }
       } catch (err) {
-        console.error(`Failed to send WhatsApp message to ${c.name} (${c.phone}):`, err);
+        console.error(`Failed to prepare WhatsApp message for ${c.name} (${c.phone}):`, err);
       }
     }
 
     setBatchWhatsAppSending(false);
     setWhatsAppProgress(null);
-    setSelectedCandidates([]);
-    alert(`Successfully sent resume link via WhatsApp to ${sentCount} of ${toSend.length} candidate(s)!`);
+
+    // Case 1: Automated dispatch via Cloud API
+    if (cloudApiSentCount > 0 && preparedItems.length === 0) {
+      setSelectedCandidates([]);
+      alert(`✅ Successfully sent resume upload links via WhatsApp Cloud API to ${cloudApiSentCount} candidate(s)!`);
+      return;
+    }
+
+    // Case 2: Running in direct link mode (WhatsApp Web)
+    if (preparedItems.length === 1) {
+      const single = preparedItems[0];
+      const shouldOpen = confirm(
+        `WhatsApp message prepared for ${single.candidate.name} (${single.candidate.phone})!\n\nNotice: WhatsApp Cloud API is running in direct link mode.\n\nWould you like to open WhatsApp Web to send this message directly?`
+      );
+      if (shouldOpen) {
+        window.open(single.waLink, '_blank');
+      }
+      setSelectedCandidates([]);
+      return;
+    }
+
+    if (preparedItems.length > 1) {
+      // Launch Direct WhatsApp Dispatch modal
+      setBatchWhatsAppItems(preparedItems);
+      const shouldOpenFirst = confirm(
+        `WhatsApp messages prepared for ${preparedItems.length} candidate(s) in direct link mode!\n\nClick OK to open the first candidate (${preparedItems[0].candidate.name}) in WhatsApp Web now, or Cancel to open from the list.`
+      );
+      if (shouldOpenFirst) {
+        window.open(preparedItems[0].waLink, '_blank');
+        preparedItems[0].opened = true;
+        setBatchWhatsAppItems([...preparedItems]);
+      }
+    } else if (cloudApiSentCount === 0) {
+      alert('Could not prepare WhatsApp links for selected candidates. Please verify candidate phone numbers.');
+    }
   };
 
   const fetchCandidates = async () => {
@@ -3325,6 +3360,131 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direct WhatsApp Dispatch Queue Modal */}
+      {batchWhatsAppItems && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card rounded-2xl border border-border max-w-lg w-full p-6 space-y-4 shadow-2xl my-8 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-start border-b border-border pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <MessageSquare className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-foreground">
+                    Send via WhatsApp (Direct Mode)
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    {batchWhatsAppItems.filter((item) => item.opened).length} of {batchWhatsAppItems.length} opened in WhatsApp Web
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setBatchWhatsAppItems(null);
+                  setSelectedCandidates([]);
+                }}
+                className="text-muted-foreground hover:text-foreground text-lg font-bold p-1 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              WhatsApp Cloud API is operating in direct link mode. Click each candidate below to open WhatsApp Web and send their personalized resume upload link directly:
+            </p>
+
+            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {batchWhatsAppItems.map((item, idx) => (
+                <div
+                  key={item.candidate.id}
+                  className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-colors ${
+                    item.opened
+                      ? 'bg-emerald-50/50 border-emerald-300'
+                      : 'bg-muted/30 border-border'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-foreground truncate">{item.candidate.name}</span>
+                      {item.opened && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                          <Check className="h-3 w-3 stroke-[3]" /> Opened
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {item.candidate.role} • <span className="font-mono">{item.candidate.phone}</span>
+                    </p>
+                  </div>
+
+                  <a
+                    href={item.waLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      const updated = [...batchWhatsAppItems];
+                      updated[idx].opened = true;
+                      setBatchWhatsAppItems(updated);
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0 ${
+                      item.opened
+                        ? 'bg-muted hover:bg-muted/80 text-foreground border border-border'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>{item.opened ? 'Re-open' : 'Open WhatsApp Web'}</span>
+                  </a>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Footer Controls */}
+            <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
+              {(() => {
+                const nextUnopened = batchWhatsAppItems.find((item) => !item.opened);
+                if (nextUnopened) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.open(nextUnopened.waLink, '_blank');
+                        const updated = batchWhatsAppItems.map((item) =>
+                          item.candidate.id === nextUnopened.candidate.id ? { ...item, opened: true } : item
+                        );
+                        setBatchWhatsAppItems(updated);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      <span>Send to Next ({nextUnopened.candidate.name})</span>
+                    </button>
+                  );
+                }
+                return (
+                  <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    All candidates opened in WhatsApp Web
+                  </span>
+                );
+              })()}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBatchWhatsAppItems(null);
+                  setSelectedCandidates([]);
+                }}
+                className="px-4 py-2 text-xs font-bold rounded-xl border border-border bg-background hover:bg-muted text-foreground transition-colors cursor-pointer"
+              >
+                Done
               </button>
             </div>
           </div>
