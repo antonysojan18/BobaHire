@@ -157,8 +157,10 @@ export default function AdminDashboard() {
 
   // Batch Reminder State & Selection
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
-  const [batchReminding, setBatchReminding] = useState<boolean>(false);
-  const [remindProgress, setRemindProgress] = useState<{ total: number; current: number; currentName: string } | null>(null);
+  const [batchEmailSending, setBatchEmailSending] = useState<boolean>(false);
+  const [emailProgress, setEmailProgress] = useState<{ total: number; current: number; currentName: string } | null>(null);
+  const [batchWhatsAppSending, setBatchWhatsAppSending] = useState<boolean>(false);
+  const [whatsAppProgress, setWhatsAppProgress] = useState<{ total: number; current: number; currentName: string } | null>(null);
 
   const toggleSelectCandidate = (id: string) => {
     setSelectedCandidates((prev) =>
@@ -166,34 +168,30 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleBatchRemindPending = async (targets?: Candidate[]) => {
-    const toRemind = targets || (selectedCandidates.length > 0
+  const handleBatchSendEmail = async (targets?: Candidate[]) => {
+    const pending = targets || (selectedCandidates.length > 0
       ? candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url)
       : candidates.filter((c) => !c.resume_url));
 
-    if (toRemind.length === 0) {
-      alert('No candidates with pending resumes found to remind.');
+    const finalTargets = pending.length > 0 ? pending : candidates.filter((c) => selectedCandidates.includes(c.id));
+
+    if (finalTargets.length === 0) {
+      alert('No candidates found to email.');
       return;
     }
 
-    const hasPhones = toRemind.some((c) => !!c.phone);
-    const confirmText = hasPhones
-      ? `Send CV upload reminders to ${toRemind.length} pending candidate(s)?\n\nReminders will be dispatched via Email and WhatsApp (for candidates with phone number).`
-      : `Are you sure you want to send CV upload reminder emails to ${toRemind.length} pending candidate(s)?`;
-
-    if (!confirm(confirmText)) {
+    if (!confirm(`Send resume upload reminder emails to ${finalTargets.length} selected candidate(s)?`)) {
       return;
     }
 
-    setBatchReminding(true);
-    setRemindProgress({ total: toRemind.length, current: 0, currentName: '' });
+    setBatchEmailSending(true);
+    setEmailProgress({ total: finalTargets.length, current: 0, currentName: '' });
     let sentCount = 0;
-    let waSentCount = 0;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
-    for (let i = 0; i < toRemind.length; i++) {
-      const c = toRemind[i];
-      setRemindProgress({ total: toRemind.length, current: i + 1, currentName: c.name });
+    for (let i = 0; i < finalTargets.length; i++) {
+      const c = finalTargets[i];
+      setEmailProgress({ total: finalTargets.length, current: i + 1, currentName: c.name });
       try {
         const uploadUrl = `${baseUrl}/upload?id=${c.id}&name=${encodeURIComponent(c.name)}&role=${encodeURIComponent(c.role)}`;
         const res = await fetch('/api/send-status-email', {
@@ -206,24 +204,84 @@ export default function AdminDashboard() {
             location: c.location || '',
             role: c.role,
             action: 'reminder',
-            sendWhatsapp: !!c.phone,
+            sendWhatsapp: false,
             uploadUrl,
           }),
         });
         if (res.ok) {
           sentCount++;
-          const data = await res.json().catch(() => ({}));
-          if (data.whatsappDispatched) waSentCount++;
         }
       } catch (err) {
         console.error(`Failed to send reminder email to ${c.email}:`, err);
       }
     }
 
-    setBatchReminding(false);
-    setRemindProgress(null);
+    setBatchEmailSending(false);
+    setEmailProgress(null);
     setSelectedCandidates([]);
-    alert(`Successfully sent CV reminders to ${sentCount} of ${toRemind.length} candidate(s)${waSentCount > 0 ? ` (${waSentCount} also received via WhatsApp)` : ''}!`);
+    alert(`Successfully sent resume link via email to ${sentCount} of ${finalTargets.length} candidate(s)!`);
+  };
+
+  const handleBatchSendWhatsApp = async (targets?: Candidate[]) => {
+    const pending = targets || (selectedCandidates.length > 0
+      ? candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url)
+      : candidates.filter((c) => !c.resume_url));
+
+    const finalCandidates = pending.length > 0 ? pending : candidates.filter((c) => selectedCandidates.includes(c.id));
+    const toSend = finalCandidates.filter((c) => !!c.phone);
+    const noPhoneCount = finalCandidates.length - toSend.length;
+
+    if (toSend.length === 0) {
+      alert('None of the selected candidate(s) have a phone number on record.');
+      return;
+    }
+
+    const confirmMsg = noPhoneCount > 0
+      ? `Send resume upload link via WhatsApp to ${toSend.length} candidate(s)?\n\n(${noPhoneCount} candidate(s) without phone numbers will be skipped.)`
+      : `Send resume upload link via WhatsApp to ${toSend.length} candidate(s)?`;
+
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
+    setBatchWhatsAppSending(true);
+    setWhatsAppProgress({ total: toSend.length, current: 0, currentName: '' });
+    let sentCount = 0;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+    for (let i = 0; i < toSend.length; i++) {
+      const c = toSend[i];
+      setWhatsAppProgress({ total: toSend.length, current: i + 1, currentName: c.name });
+      try {
+        const uploadUrl = `${baseUrl}/upload?id=${c.id}&name=${encodeURIComponent(c.name)}&role=${encodeURIComponent(c.role)}`;
+        const res = await fetch('/api/send-whatsapp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateId: c.id,
+            name: c.name,
+            phone: c.phone,
+            role: c.role,
+            uploadUrl,
+            action: !c.resume_url ? 'invite' : 'reminder',
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.success || data.waLink) {
+            sentCount++;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to send WhatsApp message to ${c.name} (${c.phone}):`, err);
+      }
+    }
+
+    setBatchWhatsAppSending(false);
+    setWhatsAppProgress(null);
+    setSelectedCandidates([]);
+    alert(`Successfully sent resume link via WhatsApp to ${sentCount} of ${toSend.length} candidate(s)!`);
   };
 
   const fetchCandidates = async () => {
@@ -3273,45 +3331,73 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
         </div>
       )}
 
-      {/* Floating Batch Action Toolbar for Selected Candidates (Simple Transparent Reddish-Pink Glassmorphism) */}
-      {selectedCandidates.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 rounded-2xl border border-[#a53861]/30 bg-card/60 dark:bg-card/50 px-5 py-2.5 shadow-xl backdrop-blur-xl ring-1 ring-[#a53861]/25 animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <span className="text-xs sm:text-sm font-medium text-foreground">
-            <strong className="text-[#a53861] font-bold">{selectedCandidates.length}</strong> candidate(s) selected
-          </span>
+      {/* Floating Batch Action Toolbar for Selected Candidates */}
+      {selectedCandidates.length > 0 && (() => {
+        const selectedPending = candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url);
+        const emailCount = selectedPending.length > 0 ? selectedPending.length : selectedCandidates.length;
+        const selectedPendingWithPhone = selectedPending.filter((c) => !!c.phone);
+        const selectedWithPhone = candidates.filter((c) => selectedCandidates.includes(c.id) && !!c.phone);
+        const whatsappCount = selectedPendingWithPhone.length > 0 ? selectedPendingWithPhone.length : selectedWithPhone.length;
 
-          {candidates.some((c) => selectedCandidates.includes(c.id) && !c.resume_url) ? (
+        return (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-[#a53861]/30 bg-card/90 px-5 py-2.5 shadow-xl backdrop-blur-xl ring-1 ring-[#a53861]/25 animate-in fade-in slide-in-from-bottom-3 duration-200 max-w-[95vw]">
+            <span className="text-xs sm:text-sm font-medium text-foreground whitespace-nowrap">
+              <strong className="text-[#a53861] font-bold">{selectedCandidates.length}</strong> candidate(s) selected
+            </span>
+
+            {/* Send via email Button */}
             <button
               type="button"
-              disabled={batchReminding}
-              onClick={() => handleBatchRemindPending()}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+              disabled={batchEmailSending || batchWhatsAppSending}
+              onClick={() => handleBatchSendEmail()}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              title="Send resume upload link via Email to selected candidates"
             >
-              {batchReminding ? (
+              {batchEmailSending ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>{remindProgress ? `Reminding (${remindProgress.current}/${remindProgress.total})...` : 'Reminding...'}</span>
+                  <span>{emailProgress ? `Sending (${emailProgress.current}/${emailProgress.total})...` : 'Sending email...'}</span>
                 </>
               ) : (
                 <>
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Send Reminder to Selected ({candidates.filter((c) => selectedCandidates.includes(c.id) && !c.resume_url).length})</span>
+                  <Mail className="h-3.5 w-3.5" />
+                  <span>Send via email ({emailCount})</span>
                 </>
               )}
             </button>
-          ) : (
-            <span className="text-xs text-muted-foreground italic">All selected have uploaded CV</span>
-          )}
 
-          <button
-            type="button"
-            onClick={() => setSelectedCandidates([])}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-          >
-            Clear Selection
-          </button>
-        </div>
-      )}
+            {/* Send via whatsapp Button */}
+            <button
+              type="button"
+              disabled={batchWhatsAppSending || batchEmailSending || whatsappCount === 0}
+              onClick={() => handleBatchSendWhatsApp()}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors disabled:opacity-50 cursor-pointer whitespace-nowrap"
+              title={whatsappCount === 0 ? "No selected candidate has a phone number on file" : "Send resume upload link via WhatsApp to selected candidates"}
+            >
+              {batchWhatsAppSending ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>{whatsAppProgress ? `Sending (${whatsAppProgress.current}/${whatsAppProgress.total})...` : 'Sending WhatsApp...'}</span>
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>Send via whatsapp ({whatsappCount})</span>
+                </>
+              )}
+            </button>
+
+            {/* Clear Selection Button */}
+            <button
+              type="button"
+              onClick={() => setSelectedCandidates([])}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Clear selection
+            </button>
+          </div>
+        );
+      })()}
 
     </main>
   );
