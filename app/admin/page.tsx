@@ -3377,7 +3377,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 </div>
                 <div>
                   <h3 className="font-display text-lg font-bold text-foreground">
-                    Send via WhatsApp (Direct Mode)
+                    Send via WhatsApp
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     {batchWhatsAppItems.filter((item) => item.opened).length} of {batchWhatsAppItems.length} opened in WhatsApp Web
@@ -3397,7 +3397,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
             </div>
 
             <p className="text-xs text-muted-foreground">
-              WhatsApp Cloud API is operating in direct link mode. Click each candidate below to open WhatsApp Web and send their personalized resume upload link directly:
+              Click each candidate below to open WhatsApp Web and send their personalized resume upload link directly:
             </p>
 
             <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
