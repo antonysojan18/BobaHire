@@ -9,7 +9,7 @@ const fontBrand = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "BobaLive Careers — Executive Recruitment Dashboard",
+  title: "BobaLive Careers",
   description: "Screen leads, dispatch CV upload requests, and monitor automated AI candidate scoring.",
 };
 
