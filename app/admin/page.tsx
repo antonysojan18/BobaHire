@@ -1685,8 +1685,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           <div className="overflow-x-auto w-full pb-2">
             <table className="w-full min-w-[1600px] border-collapse text-sm">
               <thead>
-                <tr className="border-b border-[#5f7f7a]/25 bg-[#5f7f7a]/10 text-left">
-                  <th className="sticky left-0 z-20 px-3 py-3.5 text-center w-12 bg-[#eef3f2] dark:bg-[#1a2321] border-r border-[#5f7f7a]/25">
+                <tr className="border-b border-[#5f7f7a]/25 bg-[#eff2f2] text-left">
+                  <th className="sticky left-0 z-20 px-3 py-3.5 text-center w-12 bg-[#eff2f2] border-r border-[#5f7f7a]/25">
                     <input
                       type="checkbox"
                       title="Select / Deselect all pending candidates"
@@ -1716,12 +1716,12 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       className="h-4 w-4 rounded border-border text-amber-600 focus:ring-amber-500 cursor-pointer"
                     />
                   </th>
-                  <th className="sticky left-12 z-20 px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] w-20 bg-[#eef3f2] dark:bg-[#1a2321] border-r border-[#5f7f7a]/25">
+                  <th className="sticky left-12 z-20 px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] w-20 bg-[#eff2f2] border-r border-[#5f7f7a]/25">
                     <button type="button" onClick={() => toggleSort('rank')} className="inline-flex items-center gap-1.5 hover:text-[#5f7f7a]">
                       Rank <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </th>
-                  <th className="sticky left-32 z-20 px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] w-[240px] min-w-[240px] max-w-[240px] bg-[#eef3f2] dark:bg-[#1a2321] border-r-2 border-[#5f7f7a]/40 shadow-[4px_0_10px_-2px_rgba(0,0,0,0.08)]">
+                  <th className="sticky left-32 z-20 px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] w-[240px] min-w-[240px] max-w-[240px] bg-[#eff2f2] border-r border-[#5f7f7a]/25">
                     Candidate
                   </th>
                   <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] min-w-[170px] border-r border-[#5f7f7a]/25">
@@ -1763,14 +1763,14 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   rows.map(({ candidate: c, rank }) => {
                     const isSelected = selectedCandidates.includes(c.id);
                     const stickyCellBg = isSelected
-                      ? 'bg-amber-50 dark:bg-amber-950/80'
-                      : 'bg-card group-hover:bg-muted/60';
+                      ? 'bg-[#fffbeb] group-hover:bg-[#fef3c7]'
+                      : 'bg-white group-hover:bg-[#f7ebe0]';
 
                     return (
                       <tr
                         key={c.id}
                         className={`group transition-colors divide-x divide-border/60 ${
-                          isSelected ? 'bg-amber-50/40 dark:bg-amber-950/20' : 'hover:bg-muted/40'
+                          isSelected ? 'bg-[#fffbeb] hover:bg-[#fef3c7]' : 'bg-white hover:bg-[#f7ebe0]'
                         }`}
                       >
                         <td className={`sticky left-0 z-10 px-3 py-4 text-center w-12 border-r border-border/60 transition-colors ${stickyCellBg}`}>
@@ -1784,7 +1784,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                         <td className={`sticky left-12 z-10 px-5 py-4 font-display text-base font-bold text-muted-foreground w-20 border-r border-border/60 transition-colors ${stickyCellBg}`}>
                           {rank !== null ? `#${rank}` : '—'}
                         </td>
-                        <td className={`sticky left-32 z-10 px-5 py-4 w-[240px] min-w-[240px] max-w-[240px] border-r-2 border-border/80 shadow-[4px_0_10px_-2px_rgba(0,0,0,0.08)] transition-colors ${stickyCellBg}`}>
+                        <td className={`sticky left-32 z-10 px-5 py-4 w-[240px] min-w-[240px] max-w-[240px] border-r border-border/60 transition-colors ${stickyCellBg}`}>
                           <p className="font-semibold text-foreground truncate">{c.name}</p>
                           <p className="text-xs text-muted-foreground truncate">{c.email}</p>
                         </td>
