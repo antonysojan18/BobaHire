@@ -2696,41 +2696,6 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 <h4 className="font-display text-base font-bold text-foreground flex items-center gap-2">
                   <span>📊</span> AI Evaluation & Verification Report
                 </h4>
-                <div className="flex items-center gap-2">
-                  {/* Verification Indicator */}
-                  {activeModal.candidate.ai_evaluation && (
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
-                      (activeModal.candidate.ai_evaluation as any)?.meta_verification_status === 'Discrepancy Noted'
-                        ? 'bg-amber-100 text-amber-900 border-amber-300'
-                        : (activeModal.candidate.ai_evaluation as any)?.meta_verification_status === 'Unverified'
-                        ? 'bg-slate-100 text-slate-800 border-slate-300'
-                        : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                    }`}>
-                      Verification: {(activeModal.candidate.ai_evaluation as any)?.meta_verification_status || 'Verified'}
-                    </span>
-                  )}
-                  {activeModal.candidate.resume_url && (
-                    <button
-                      type="button"
-                      disabled={evaluatingId === activeModal.candidate.id}
-                      onClick={() => handleEvaluateCandidate(activeModal.candidate)}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-                      title="Run or re-run AI evaluation for this candidate"
-                    >
-                      {evaluatingId === activeModal.candidate.id ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Evaluating...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-3.5 w-3.5" />
-                          <span>{activeModal.candidate.ai_score === null && !activeModal.candidate.ai_evaluation ? 'Evaluate' : 'Re-Evaluate'}</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
               </div>
 
               {/* Lead Form Summary Card */}
