@@ -65,6 +65,7 @@ export async function POST(req: Request) {
     const action = body.action || 'sync'; // 'preview' | 'sync'
     const sendInvites = body.sendInvites !== false; // default true
     const sheetUrl = body.sheetUrl ? String(body.sheetUrl).trim() : '';
+    const roleOverride = body.role ? String(body.role).trim() : '';
 
     let rawRows: Record<string, any>[] = [];
 
@@ -132,7 +133,7 @@ export async function POST(req: Request) {
           name: lead.name,
           email: lead.email,
           phone: lead.phone,
-          roleInput: lead.roleInput,
+          roleInput: roleOverride || lead.roleInput,
           city: lead.residingCity,
           isExisting: !!existing,
           existingStatus: existing?.status || null,
@@ -169,7 +170,7 @@ export async function POST(req: Request) {
             name: lead.name,
             email: lead.email,
             phone: lead.phone,
-            roleInput: lead.roleInput,
+            roleInput: roleOverride || lead.roleInput,
             metaLeadId: lead.metaLeadId,
             homeState: lead.homeState,
             residingCity: lead.residingCity,

@@ -819,6 +819,7 @@ export default function AdminDashboard() {
 
   // Google Sheets & Meta Ads Lead Sync System
   const [leadSourceTab, setLeadSourceTab] = useState<'sheet' | 'file'>('sheet');
+  const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('HR Executive');
   const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
   const [autoInviteToggle, setAutoInviteToggle] = useState<boolean>(true);
   const [sheetSyncing, setSheetSyncing] = useState<boolean>(false);
@@ -890,6 +891,7 @@ export default function AdminDashboard() {
             sheetUrl: googleSheetUrl.trim(),
             action: 'sync',
             sendInvites: autoInviteToggle,
+            role: uploadRoleOverride,
           }),
         });
 
@@ -923,7 +925,7 @@ export default function AdminDashboard() {
       isSubscribed = false;
       clearInterval(timer);
     };
-  }, [autoSyncActive, autoSyncInterval, googleSheetUrl, autoInviteToggle, sheetSyncing, sheetPreviewing]);
+  }, [autoSyncActive, autoSyncInterval, googleSheetUrl, autoInviteToggle, uploadRoleOverride, sheetSyncing, sheetPreviewing]);
 
   const toggleAutoSync = () => {
     if (!googleSheetUrl.trim()) {
@@ -969,6 +971,7 @@ export default function AdminDashboard() {
           sheetUrl: googleSheetUrl.trim(),
           action: isPreview ? 'preview' : 'sync',
           sendInvites: autoInviteToggle,
+          role: uploadRoleOverride,
         }),
       });
 
@@ -994,7 +997,6 @@ export default function AdminDashboard() {
 
   // Meta Ads CSV / Excel Batch Import Backup System
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('HR Executive');
   const [batchImporting, setBatchImporting] = useState<boolean>(false);
   const [importStatus, setImportStatus] = useState<{
     total: number;
@@ -1913,6 +1915,20 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     placeholder="Paste Google Sheets link (e.g. https://docs.google.com/spreadsheets/d/...)"
                     className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861] h-[36px]"
                   />
+                </div>
+
+                <div className="w-full sm:w-48">
+                  <select
+                    aria-label="Select role override"
+                    value={uploadRoleOverride}
+                    onChange={(e) => setUploadRoleOverride(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861] h-[36px]"
+                  >
+                    <option value="HR Executive">HR Executive</option>
+                    <option value="General Manager">Manager</option>
+                    <option value="Cafe Staff">Cafe Staff</option>
+                    <option value="Barista">Barista</option>
+                  </select>
                 </div>
 
                 <div className="flex items-center gap-2">
