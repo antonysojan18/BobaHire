@@ -14,8 +14,11 @@ import {
   Clock,
   Copy,
   Download,
+  ExternalLink,
   FileSpreadsheet,
   FileText,
+  Globe,
+  Link2,
   Loader2,
   Mail,
   MessageSquare,
@@ -29,6 +32,8 @@ import {
   Upload,
   X,
   XCircle,
+  Zap,
+  Radio,
 } from 'lucide-react';
 
 interface Candidate {
@@ -393,8 +398,8 @@ export default function AdminDashboard() {
           typeof c.ai_score === 'number'
             ? c.ai_score
             : typeof c.ai_evaluation?.total_score === 'number'
-            ? c.ai_evaluation.total_score
-            : null;
+              ? c.ai_evaluation.total_score
+              : null;
 
         if (c.ai_score === null && typeof c.ai_evaluation?.total_score === 'number') {
           supabase.from('candidates').update({ ai_score: c.ai_evaluation.total_score }).eq('id', c.id).then();
@@ -433,11 +438,11 @@ export default function AdminDashboard() {
           prev.map((c) =>
             c.id === candidate.id
               ? {
-                  ...c,
-                  ai_score: newScore,
-                  ai_evaluation: data.evaluation,
-                  status: 'reviewed',
-                }
+                ...c,
+                ai_score: newScore,
+                ai_evaluation: data.evaluation,
+                status: 'reviewed',
+              }
               : c
           )
         );
@@ -445,14 +450,14 @@ export default function AdminDashboard() {
         setActiveModal((prev) =>
           prev && prev.candidate.id === candidate.id
             ? {
-                ...prev,
-                candidate: {
-                  ...prev.candidate,
-                  ai_score: newScore,
-                  ai_evaluation: data.evaluation,
-                  status: 'reviewed',
-                },
-              }
+              ...prev,
+              candidate: {
+                ...prev.candidate,
+                ai_score: newScore,
+                ai_evaluation: data.evaluation,
+                status: 'reviewed',
+              },
+            }
             : prev
         );
       }
@@ -815,6 +820,182 @@ export default function AdminDashboard() {
     setInterviewCandidate(null);
   };
 
+  // Google Sheets & Meta Ads Lead Sync System
+  const [leadSourceTab, setLeadSourceTab] = useState<'sheet' | 'file' | 'script'>('sheet');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
+  const [autoInviteToggle, setAutoInviteToggle] = useState<boolean>(true);
+  const [sheetSyncing, setSheetSyncing] = useState<boolean>(false);
+  const [sheetPreviewing, setSheetPreviewing] = useState<boolean>(false);
+  const [sheetPreviewData, setSheetPreviewData] = useState<{
+    totalFound: number;
+    newCount: number;
+    existingCount: number;
+    leads: Array<{
+      name: string;
+      email: string;
+      phone?: string;
+      roleInput?: string;
+      city?: string;
+      isExisting: boolean;
+      existingStatus?: string | null;
+      hasResume?: boolean;
+    }>;
+  } | null>(null);
+  const [sheetSyncResult, setSheetSyncResult] = useState<{
+    totalProcessed: number;
+    newCount: number;
+    existingCount: number;
+    emailsSent: number;
+    whatsappSent: number;
+  } | null>(null);
+  const [copiedScript, setCopiedScript] = useState<boolean>(false);
+
+  // Automated Real-Time Background Auto-Sync State (3s default)
+  const [autoSyncActive, setAutoSyncActive] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('bobahire_auto_sync_active') === 'true';
+    }
+    return false;
+  });
+  const [autoSyncInterval, setAutoSyncInterval] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const savedInt = localStorage.getItem('bobahire_auto_sync_interval');
+      if (savedInt) return Number(savedInt) || 3;
+    }
+    return 3; // Default 3 seconds
+  });
+  const [lastAutoSyncTime, setLastAutoSyncTime] = useState<Date | null>(null);
+  const [autoSyncSessionCount, setAutoSyncSessionCount] = useState<number>(0);
+  const [isSilentPolling, setIsSilentPolling] = useState<boolean>(false);
+  const [autoSyncNotification, setAutoSyncNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('bobahire_google_sheet_url');
+      if (saved) setGoogleSheetUrl(saved);
+    }
+  }, []);
+
+  // Background Auto-Sync Polling Hook
+  useEffect(() => {
+    if (!autoSyncActive || !googleSheetUrl.trim()) return;
+
+    let isSubscribed = true;
+
+    const runSilentSync = async () => {
+      if (sheetSyncing || sheetPreviewing) return;
+      setIsSilentPolling(true);
+
+      try {
+        const res = await fetch('/api/sync-google-sheets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sheetUrl: googleSheetUrl.trim(),
+            action: 'sync',
+            sendInvites: autoInviteToggle,
+          }),
+        });
+
+        const data = await res.json();
+        if (isSubscribed && res.ok && data.success) {
+          setLastAutoSyncTime(new Date());
+          if (data.newCount > 0) {
+            setAutoSyncSessionCount((prev) => prev + data.newCount);
+            setAutoSyncNotification(
+              `⚡ Auto-Sync: ${data.newCount} new lead(s) automatically imported from Google Sheet!`
+            );
+            fetchCandidates();
+            setTimeout(() => {
+              if (isSubscribed) setAutoSyncNotification(null);
+            }, 6000);
+          }
+        }
+      } catch (silentErr) {
+        console.warn('Background auto-sync polling warning:', silentErr);
+      } finally {
+        if (isSubscribed) setIsSilentPolling(false);
+      }
+    };
+
+    // Immediate initial sync
+    runSilentSync();
+
+    const timer = setInterval(runSilentSync, Math.max(2, autoSyncInterval) * 1000);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(timer);
+    };
+  }, [autoSyncActive, autoSyncInterval, googleSheetUrl, autoInviteToggle, sheetSyncing, sheetPreviewing]);
+
+  const toggleAutoSync = () => {
+    if (!googleSheetUrl.trim()) {
+      alert('Please enter your Google Sheet URL before enabling Auto-Sync.');
+      return;
+    }
+    const nextState = !autoSyncActive;
+    setAutoSyncActive(nextState);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bobahire_auto_sync_active', String(nextState));
+    }
+  };
+
+  const handleIntervalChange = (newSec: number) => {
+    setAutoSyncInterval(newSec);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bobahire_auto_sync_interval', String(newSec));
+    }
+  };
+
+  const handleSyncGoogleSheet = async (isPreview: boolean = false) => {
+    if (!googleSheetUrl.trim()) {
+      alert('Please enter or paste your Google Sheet URL.');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bobahire_google_sheet_url', googleSheetUrl.trim());
+    }
+
+    if (isPreview) {
+      setSheetPreviewing(true);
+    } else {
+      setSheetSyncing(true);
+    }
+    setSheetSyncResult(null);
+
+    try {
+      const res = await fetch('/api/sync-google-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sheetUrl: googleSheetUrl.trim(),
+          action: isPreview ? 'preview' : 'sync',
+          sendInvites: autoInviteToggle,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to sync with Google Sheet');
+      }
+
+      if (isPreview) {
+        setSheetPreviewData(data);
+      } else {
+        setSheetSyncResult(data);
+        setSheetPreviewData(null);
+        await fetchCandidates();
+      }
+    } catch (err: any) {
+      alert(`Google Sheet Sync Error: ${err.message}`);
+    } finally {
+      setSheetPreviewing(false);
+      setSheetSyncing(false);
+    }
+  };
+
   // Meta Ads CSV / Excel Batch Import Backup System
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('HR Executive');
@@ -825,6 +1006,7 @@ export default function AdminDashboard() {
     passed: number;
     failed: number;
     emailsSent: number;
+    whatsappSent: number;
   } | null>(null);
 
   const parseFileToLeads = async (file: File, selectedRoleOverride: string = 'auto') => {
@@ -1042,6 +1224,7 @@ export default function AdminDashboard() {
         passed: passedCount,
         failed: failedCount,
         emailsSent,
+        whatsappSent: 0,
       });
 
       fetchCandidates();
@@ -1556,7 +1739,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
 
   return (
     <main className="min-h-screen bg-background font-sans text-foreground">
-      
+
       {/* Header Bar */}
       <header className="border-b border-[#8c2d50] bg-[#a53861] text-white shadow-md">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
@@ -1599,7 +1782,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
       </header>
 
       <div className="mx-auto max-w-[1500px] space-y-8 px-5 py-8 lg:px-8">
-        
+
         {/* Executive Analytics Section */}
         <section>
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1637,50 +1820,454 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           </div>
         </section>
 
-        {/* Simplified Lead Upload Section with Role Selector */}
-        <section className="rounded-xl border border-border bg-card p-4 shadow-panel space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Upload candidate lead files (.csv / .xlsx) to evaluate responses, screen qualifications, and dispatch resume upload invites.
-          </p>
-          <form onSubmit={handleBatchFileUpload} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <input
-                type="file"
-                accept=".csv,.txt,.xlsx,.xls"
-                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#a53861] file:text-white hover:file:bg-[#8c2d50] cursor-pointer border border-input rounded-lg bg-background p-1"
-              />
+        {/* Unified Meta Ads & Google Sheets CRM Sync Section */}
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-panel space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-3.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#a53861]/10 text-[#a53861] flex items-center justify-center font-bold">
+                  <FileSpreadsheet className="h-4 w-4" />
+                </div>
+                <h3 className="font-display text-base sm:text-lg font-bold text-foreground">
+                  Meta Ads Leads & Google Sheets Sync
+                </h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  CRM Auto-Sync
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Ingest instant form leads from your Meta CRM Google Sheet or upload exports to evaluate candidate eligibility and dispatch resume upload invites.
+              </p>
             </div>
 
-            <div className="w-full md:w-56">
-              <select
-                aria-label="Select target role for uploaded leads"
-                value={uploadRoleOverride}
-                onChange={(e) => setUploadRoleOverride(e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-[#a53861] h-[36px]"
+            {/* Tab Switcher */}
+            <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1 gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setLeadSourceTab('sheet')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  leadSourceTab === 'sheet'
+                    ? 'bg-card text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                <option value="HR Executive">HR Executive</option>
-                <option value="General Manager">Manager</option>
-                <option value="Cafe Staff">Cafe Staff</option>
-                <option value="Barista">Barista</option>
-              </select>
+                <Globe className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Google Sheet Live Sync</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeadSourceTab('file')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  leadSourceTab === 'file'
+                    ? 'bg-card text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Upload className="h-3.5 w-3.5 text-primary" />
+                <span>File Upload (.csv / .xlsx)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeadSourceTab('script')}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  leadSourceTab === 'script'
+                    ? 'bg-card text-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                <span>Auto-Webhook</span>
+              </button>
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={batchImporting || !csvFile}
-              className="inline-flex w-full md:w-auto items-center justify-center rounded-lg bg-[#a53861] px-6 py-2 text-sm font-bold text-white transition-colors hover:bg-[#8c2d50] disabled:opacity-50 cursor-pointer shrink-0 shadow-xs h-[36px]"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {batchImporting ? 'Evaluating...' : 'Evaluate'}
-            </button>
-          </form>
+          {/* TAB 1: GOOGLE SHEETS LIVE SYNC */}
+          {leadSourceTab === 'sheet' && (
+            <div className="space-y-4">
+              {/* Live Auto-Sync Control Ribbon */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-muted/20">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={toggleAutoSync}
+                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer select-none ${
+                      autoSyncActive
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/30'
+                        : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
+                    }`}
+                    title={autoSyncActive ? 'Click to pause automatic polling' : 'Click to enable real-time 3-second polling'}
+                  >
+                    {autoSyncActive ? (
+                      <>
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                        </span>
+                        <span>Auto-Sync: ACTIVE</span>
+                      </>
+                    ) : (
+                      <>
+                        <Radio className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>Auto-Sync: OFF</span>
+                      </>
+                    )}
+                  </button>
 
-          {importStatus && (
-            <p className="mt-3 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-              Processed {importStatus.processed} of {importStatus.total} leads. Sent {importStatus.emailsSent} invitation emails.
-            </p>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">Interval:</span>
+                    <select
+                      value={autoSyncInterval}
+                      onChange={(e) => handleIntervalChange(Number(e.target.value))}
+                      className="rounded-lg border border-input bg-card px-2 py-1 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861]"
+                    >
+                      <option value={3}>3 seconds (Ultra Fast)</option>
+                      <option value={5}>5 seconds</option>
+                      <option value={10}>10 seconds</option>
+                      <option value={30}>30 seconds</option>
+                    </select>
+                  </div>
+
+                  {autoSyncActive && (
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground pl-1">
+                      {isSilentPolling ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Checking sheet...</span>
+                        </span>
+                      ) : lastAutoSyncTime ? (
+                        <span className="text-muted-foreground">
+                          Last checked at <strong className="text-foreground">{lastAutoSyncTime.toLocaleTimeString()}</strong>
+                        </span>
+                      ) : null}
+
+                      {autoSyncSessionCount > 0 && (
+                        <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                          +{autoSyncSessionCount} leads collected live
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-muted-foreground">
+                  {autoSyncActive ? (
+                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                      <Zap className="h-3.5 w-3.5 fill-emerald-500 text-emerald-600" />
+                      Live background polling is running
+                    </span>
+                  ) : (
+                    <span>Toggle ON for continuous hands-free lead ingestion</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Real-time Notification Banner */}
+              {autoSyncNotification && (
+                <div className="rounded-xl border border-emerald-400 bg-emerald-100/90 text-emerald-950 p-3 flex items-center justify-between gap-3 text-xs font-bold shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-emerald-700 fill-emerald-600 shrink-0" />
+                    <span>{autoSyncNotification}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAutoSyncNotification(null)}
+                    className="text-emerald-900 hover:text-black font-extrabold text-sm px-1.5"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+                <div className="relative flex-1 min-w-0">
+                  <Link2 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="url"
+                    value={googleSheetUrl}
+                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                    placeholder="Paste Meta Ads CRM Google Sheet URL (e.g. https://docs.google.com/spreadsheets/d/...)"
+                    className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#a53861] h-[38px]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium text-foreground cursor-pointer select-none h-[38px]">
+                    <input
+                      type="checkbox"
+                      checked={autoInviteToggle}
+                      onChange={(e) => setAutoInviteToggle(e.target.checked)}
+                      className="rounded text-[#a53861] focus:ring-[#a53861]"
+                    />
+                    <span className="whitespace-nowrap">Auto-send CV links</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    disabled={sheetPreviewing || sheetSyncing || !googleSheetUrl.trim()}
+                    onClick={() => handleSyncGoogleSheet(true)}
+                    className="inline-flex items-center justify-center rounded-xl border border-border bg-background hover:bg-muted px-4 py-2 text-xs font-bold text-foreground transition-all disabled:opacity-50 cursor-pointer shadow-xs h-[38px] whitespace-nowrap"
+                    title="Check how many new leads are currently in the sheet"
+                  >
+                    {sheetPreviewing ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-primary" />
+                        <span>Checking...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <span>Preview Leads</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={sheetSyncing || sheetPreviewing || !googleSheetUrl.trim()}
+                    onClick={() => handleSyncGoogleSheet(false)}
+                    className="inline-flex items-center justify-center rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer shadow-xs h-[38px] whitespace-nowrap"
+                  >
+                    {sheetSyncing ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        <span>Syncing Leads...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                        <span>Sync Now</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Sheet Notice / Instruction */}
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <span>💡</span>
+                <span>
+                  Make sure your Google Sheet sharing is set to <strong>"Anyone with the link can view"</strong> so BobaHire can continuously read incoming Meta Ads rows.
+                </span>
+              </p>
+
+              {/* Preview Leads Card */}
+              {sheetPreviewData && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3 animate-in fade-in duration-150">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="text-xs font-bold text-emerald-950">
+                        {sheetPreviewData.totalFound} Total Leads in Sheet
+                      </span>
+                      <span className="text-xs font-medium text-emerald-800">
+                        ({sheetPreviewData.newCount} new to import • {sheetPreviewData.existingCount} already enrolled)
+                      </span>
+                    </div>
+
+                    {sheetPreviewData.newCount > 0 && (
+                      <button
+                        type="button"
+                        disabled={sheetSyncing}
+                        onClick={() => handleSyncGoogleSheet(false)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors cursor-pointer"
+                      >
+                        {sheetSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        <span>Import {sheetPreviewData.newCount} New Leads Now</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {sheetPreviewData.leads.length > 0 && (
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-emerald-200/80 bg-card divide-y divide-border text-xs">
+                      {sheetPreviewData.leads.slice(0, 8).map((lead, idx) => (
+                        <div key={idx} className="flex items-center justify-between px-3 py-2 gap-2">
+                          <div className="min-w-0 flex-1 truncate">
+                            <span className="font-bold text-foreground">{lead.name}</span>
+                            <span className="text-muted-foreground mx-1.5">•</span>
+                            <span className="text-muted-foreground font-mono">{lead.email}</span>
+                            {lead.phone && (
+                              <>
+                                <span className="text-muted-foreground mx-1.5">•</span>
+                                <span className="text-muted-foreground">{lead.phone}</span>
+                              </>
+                            )}
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                              lead.isExisting
+                                ? 'bg-muted text-muted-foreground border border-border'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            }`}
+                          >
+                            {lead.isExisting ? 'Already in Database' : 'New Lead'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sync Result Banner */}
+              {sheetSyncResult && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-emerald-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Sync complete! Processed {sheetSyncResult.totalProcessed} lead(s):{' '}
+                      <strong>{sheetSyncResult.newCount} newly enrolled</strong> ({sheetSyncResult.existingCount} already present).
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px]">
+                    <span>📧 {sheetSyncResult.emailsSent} Emails Dispatched</span>
+                    <span>💬 {sheetSyncResult.whatsappSent} WhatsApp Invites Sent</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: MANUAL CSV / EXCEL FILE UPLOAD */}
+          {leadSourceTab === 'file' && (
+            <div className="space-y-3">
+              <form onSubmit={handleBatchFileUpload} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="file"
+                    accept=".csv,.txt,.xlsx,.xls"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#a53861] file:text-white hover:file:bg-[#8c2d50] cursor-pointer border border-input rounded-xl bg-background p-1"
+                  />
+                </div>
+
+                <div className="w-full md:w-56">
+                  <select
+                    aria-label="Select target role for uploaded leads"
+                    value={uploadRoleOverride}
+                    onChange={(e) => setUploadRoleOverride(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-[#a53861] h-[38px]"
+                  >
+                    <option value="HR Executive">HR Executive</option>
+                    <option value="General Manager">Manager</option>
+                    <option value="Cafe Staff">Cafe Staff</option>
+                    <option value="Barista">Barista</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={batchImporting || !csvFile}
+                  className="inline-flex w-full md:w-auto items-center justify-center rounded-xl bg-[#a53861] px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8c2d50] disabled:opacity-50 cursor-pointer shrink-0 shadow-xs h-[38px]"
+                >
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  {batchImporting ? 'Processing...' : 'Upload & Evaluate'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={downloadSampleCSV}
+                  className="inline-flex items-center justify-center rounded-xl border border-border bg-background hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer shrink-0 h-[38px]"
+                  title="Download a pre-formatted Meta Ads Leads CSV template"
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Sample CSV</span>
+                </button>
+              </form>
+
+              {importStatus && (
+                <p className="mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  Processed {importStatus.processed} of {importStatus.total} leads. Sent {importStatus.emailsSent} invitation emails.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: REAL-TIME WEBHOOK APPS SCRIPT GUIDE */}
+          {leadSourceTab === 'script' && (
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3.5 text-xs text-foreground">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2.5">
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">
+                    Automated Real-Time Push (Google Apps Script)
+                  </h4>
+                  <p className="text-muted-foreground text-[11px] mt-0.5">
+                    Trigger BobaHire instantaneously whenever Meta Ads appends a new lead row to your Google Sheet — without clicking buttons!
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com';
+                    const scriptCode = `/**
+ * BobaHire Auto-Sync Webhook for Meta Ads Google Sheets
+ * 1. In Google Sheets: Click Extensions > Apps Script
+ * 2. Paste this code and save (Ctrl+S)
+ * 3. Click Triggers (clock icon on left) > Add Trigger
+ *    - Choose which function to run: onMetaLeadAdded
+ *    - Select event source: From spreadsheet
+ *    - Select event type: On change
+ */
+function onMetaLeadAdded(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var rowValues = sheet.getRange(lastRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  var leadObj = {};
+  for (var i = 0; i < headers.length; i++) {
+    leadObj[headers[i]] = rowValues[i];
+  }
+
+  var webhookUrl = "${baseUrl}/api/sync-google-sheets";
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      row: leadObj,
+      action: "sync",
+      sendInvites: true
+    }),
+    muteHttpExceptions: true
+  };
+
+  try {
+    UrlFetchApp.fetch(webhookUrl, options);
+  } catch (err) {
+    Logger.log("Error posting lead to BobaHire: " + err);
+  }
+}`;
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(scriptCode);
+                      setCopiedScript(true);
+                      setTimeout(() => setCopiedScript(false), 2500);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background hover:bg-muted px-3 py-1.5 text-xs font-bold text-foreground cursor-pointer transition-colors shadow-xs shrink-0"
+                >
+                  <Copy className="h-3.5 w-3.5 text-primary" />
+                  <span>{copiedScript ? 'Copied Script!' : 'Copy Apps Script'}</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-muted-foreground">
+                <div className="p-3 rounded-lg border border-border bg-card space-y-1">
+                  <span className="font-bold text-foreground">Step 1: Open Apps Script</span>
+                  <p>In your Meta CRM Google Sheet, click the top menu: <strong>Extensions → Apps Script</strong>.</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card space-y-1">
+                  <span className="font-bold text-foreground">Step 2: Paste Code & Save</span>
+                  <p>Click the <strong>Copy Apps Script</strong> button above, paste into the editor, and press <strong>Ctrl + S</strong>.</p>
+                </div>
+                <div className="p-3 rounded-lg border border-border bg-card space-y-1">
+                  <span className="font-bold text-foreground">Step 3: Add "On change" Trigger</span>
+                  <p>Click the Clock icon (Triggers) on the left sidebar → <strong>Add Trigger</strong> → select Event type: <strong>On change</strong>.</p>
+                </div>
+              </div>
+            </div>
           )}
         </section>
 
@@ -1706,10 +2293,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 </button>
               )}
             </div>
-            
+
             <div className="flex flex-wrap items-center gap-2">
               <SlidersHorizontal className="hidden h-4 w-4 text-muted-foreground lg:block" />
-              
+
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -1862,9 +2449,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     return (
                       <tr
                         key={c.id}
-                        className={`group transition-colors divide-x divide-border/60 ${
-                          isSelected ? 'bg-[#fffbeb] hover:bg-[#fef3c7]' : 'bg-white hover:bg-[#f7ebe0]'
-                        }`}
+                        className={`group transition-colors divide-x divide-border/60 ${isSelected ? 'bg-[#fffbeb] hover:bg-[#fef3c7]' : 'bg-white hover:bg-[#f7ebe0]'
+                          }`}
                       >
                         <td className={`md:sticky md:left-0 md:z-10 px-2 py-4 text-center w-[48px] min-w-[48px] max-w-[48px] border-r border-border/60 transition-colors ${stickyCellBg}`}>
                           <input
@@ -1881,129 +2467,128 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                           <p className="font-semibold text-foreground truncate">{c.name}</p>
                           <p className="text-xs text-muted-foreground truncate">{c.email}</p>
                         </td>
-                      <td className="px-5 py-4 border-r border-border/60">{c.role}</td>
-                      <td className="px-5 py-4 text-muted-foreground border-r border-border/60">{c.location || 'Remote'}</td>
-                      <td className="px-5 py-4 text-xs font-medium text-muted-foreground border-r border-border/60">
-                        {formatDateSubmitted(c.created_at)}
-                      </td>
-                      <td className="px-5 py-4 border-r border-border/60">{renderStatusBadge(c.status)}</td>
-                      <td className="px-5 py-4 border-r border-border/60">
-                        {c.ai_score === null ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : (
-                          <span className="font-display text-lg font-bold text-foreground">
-                            {c.ai_score}
-                            <span className="text-xs font-medium text-muted-foreground">/100</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="inline-flex items-center rounded-lg border border-border bg-background p-0.5 divide-x divide-border shadow-xs">
-                          <button
-                            type="button"
-                            disabled={c.status === 'shortlisted' || c.status === 'Shortlisted'}
-                            onClick={() => setConfirmAction({ candidate: c, action: 'Shortlist' })}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-40 cursor-pointer"
-                          >
-                            <CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-600" />
-                            Shortlist
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => triggerInterviewModal(c)}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
-                          >
-                            <CalendarClock className="mr-1 h-3.5 w-3.5 text-indigo-600" />
-                            Interview
-                          </button>
-                          <button
-                            type="button"
-                            disabled={c.status === 'rejected' || c.status === 'Rejected'}
-                            onClick={() => setConfirmAction({ candidate: c, action: 'Reject' })}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-40 cursor-pointer"
-                          >
-                            <XCircle className="mr-1 h-3.5 w-3.5 text-rose-600" />
-                            Reject
-                          </button>
-                          <button
-                            type="button"
-                            title={!c.resume_url ? `Send CV upload reminder to ${c.name}` : `Send message to ${c.name}`}
-                            onClick={() => openMessageModal(c)}
-                            className={`inline-flex items-center px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                              !c.resume_url
-                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold'
-                                : 'text-foreground hover:bg-muted'
-                            }`}
-                          >
-                            <MessageSquare className={`mr-1 h-3.5 w-3.5 ${!c.resume_url ? 'text-amber-600' : ''}`} />
-                            {!c.resume_url ? 'Remind' : 'Message'}
-                          </button>
-                          {c.phone && !c.resume_url && (
+                        <td className="px-5 py-4 border-r border-border/60">{c.role}</td>
+                        <td className="px-5 py-4 text-muted-foreground border-r border-border/60">{c.location || 'Remote'}</td>
+                        <td className="px-5 py-4 text-xs font-medium text-muted-foreground border-r border-border/60">
+                          {formatDateSubmitted(c.created_at)}
+                        </td>
+                        <td className="px-5 py-4 border-r border-border/60">{renderStatusBadge(c.status)}</td>
+                        <td className="px-5 py-4 border-r border-border/60">
+                          {c.ai_score === null ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span className="font-display text-lg font-bold text-foreground">
+                              {c.ai_score}
+                              <span className="text-xs font-medium text-muted-foreground">/100</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="inline-flex items-center rounded-lg border border-border bg-background p-0.5 divide-x divide-border shadow-xs">
                             <button
                               type="button"
-                              title={`Send Resume Upload Link via WhatsApp to ${c.name} (${c.phone})`}
-                              disabled={sendingWhatsappId === c.id}
-                              onClick={() => handleSendWhatsAppInvite(c)}
-                              className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer"
+                              disabled={c.status === 'shortlisted' || c.status === 'Shortlisted'}
+                              onClick={() => setConfirmAction({ candidate: c, action: 'Shortlist' })}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-40 cursor-pointer"
                             >
-                              {sendingWhatsappId === c.id && (
-                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin text-emerald-600" />
-                              )}
-                              WhatsApp
+                              <CheckCircle2 className="mr-1 h-3.5 w-3.5 text-emerald-600" />
+                              Shortlist
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            title={c.phone ? `Call: ${c.name} (${c.phone})` : `No phone number on record for ${c.name}`}
-                            onClick={() => {
-                              setCallCandidate(c);
-                              setCopiedPhone(false);
-                              setCustomPhoneInput(c.phone || '');
-                            }}
-                            className="inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
-                          >
-                            <Phone className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setActiveModal({ candidate: c, type: 'breakdown' })}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted cursor-pointer"
-                          >
-                            Points Breakdown
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!c.resume_url}
-                            onClick={() => setActiveModal({ candidate: c, type: 'pdf' })}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
-                          >
-                            <FileText className="mr-1 h-3.5 w-3.5" />
-                            View PDF
-                          </button>
-                          
-                          {/* Tick Button: Selects candidate, removes rank & places down */}
-                          <button
-                            type="button"
-                            title="Select candidate (Removes rank & places at bottom)"
-                            disabled={c.status === 'selected' || c.status === 'Selected'}
-                            onClick={() => handleSelectCandidate(c)}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 cursor-pointer transition-colors"
-                          >
-                            <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => triggerInterviewModal(c)}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
+                            >
+                              <CalendarClock className="mr-1 h-3.5 w-3.5 text-indigo-600" />
+                              Interview
+                            </button>
+                            <button
+                              type="button"
+                              disabled={c.status === 'rejected' || c.status === 'Rejected'}
+                              onClick={() => setConfirmAction({ candidate: c, action: 'Reject' })}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-40 cursor-pointer"
+                            >
+                              <XCircle className="mr-1 h-3.5 w-3.5 text-rose-600" />
+                              Reject
+                            </button>
+                            <button
+                              type="button"
+                              title={!c.resume_url ? `Send CV upload reminder to ${c.name}` : `Send message to ${c.name}`}
+                              onClick={() => openMessageModal(c)}
+                              className={`inline-flex items-center px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${!c.resume_url
+                                  ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold'
+                                  : 'text-foreground hover:bg-muted'
+                                }`}
+                            >
+                              <MessageSquare className={`mr-1 h-3.5 w-3.5 ${!c.resume_url ? 'text-amber-600' : ''}`} />
+                              {!c.resume_url ? 'Remind' : 'Message'}
+                            </button>
+                            {c.phone && !c.resume_url && (
+                              <button
+                                type="button"
+                                title={`Send Resume Upload Link via WhatsApp to ${c.name} (${c.phone})`}
+                                disabled={sendingWhatsappId === c.id}
+                                onClick={() => handleSendWhatsAppInvite(c)}
+                                className="inline-flex items-center px-2 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors cursor-pointer"
+                              >
+                                {sendingWhatsappId === c.id && (
+                                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin text-emerald-600" />
+                                )}
+                                WhatsApp
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              title={c.phone ? `Call: ${c.name} (${c.phone})` : `No phone number on record for ${c.name}`}
+                              onClick={() => {
+                                setCallCandidate(c);
+                                setCopiedPhone(false);
+                                setCustomPhoneInput(c.phone || '');
+                              }}
+                              className="inline-flex items-center justify-center px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors cursor-pointer"
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveModal({ candidate: c, type: 'breakdown' })}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted cursor-pointer"
+                            >
+                              Points Breakdown
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!c.resume_url}
+                              onClick={() => setActiveModal({ candidate: c, type: 'pdf' })}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-40 cursor-pointer"
+                            >
+                              <FileText className="mr-1 h-3.5 w-3.5" />
+                              View PDF
+                            </button>
 
-                          {/* Cross Button: Prompts deletion modal without blocking UI thread */}
-                          <button
-                            type="button"
-                            title="Delete candidate from dashboard & database"
-                            onClick={() => setConfirmAction({ candidate: c, action: 'Delete' })}
-                            className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer transition-colors"
-                          >
-                            <X className="h-4 w-4 text-rose-600 stroke-[3]" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                            {/* Tick Button: Selects candidate, removes rank & places down */}
+                            <button
+                              type="button"
+                              title="Select candidate (Removes rank & places at bottom)"
+                              disabled={c.status === 'selected' || c.status === 'Selected'}
+                              onClick={() => handleSelectCandidate(c)}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 cursor-pointer transition-colors"
+                            >
+                              <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
+                            </button>
+
+                            {/* Cross Button: Prompts deletion modal without blocking UI thread */}
+                            <button
+                              type="button"
+                              title="Delete candidate from dashboard & database"
+                              onClick={() => setConfirmAction({ candidate: c, action: 'Delete' })}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer transition-colors"
+                            >
+                              <X className="h-4 w-4 text-rose-600 stroke-[3]" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })
                 )}
@@ -2031,7 +2616,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 ✕
               </button>
             </div>
-            
+
             <div className="space-y-2">
               <button
                 type="button"
@@ -2072,8 +2657,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   {confirmAction.action === 'Shortlist'
                     ? 'Confirm Shortlist'
                     : confirmAction.action === 'Reject'
-                    ? 'Confirm Rejection'
-                    : 'Confirm Delete Candidate'}
+                      ? 'Confirm Rejection'
+                      : 'Confirm Delete Candidate'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Candidate: <strong className="text-foreground">{confirmAction.candidate.name}</strong> ({confirmAction.candidate.role})
@@ -2092,8 +2677,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
               {confirmAction.action === 'Shortlist'
                 ? `${confirmAction.candidate.name} will be marked as Shortlisted and a congratulatory email will be sent to ${confirmAction.candidate.email}.`
                 : confirmAction.action === 'Reject'
-                ? `${confirmAction.candidate.name} will be marked as Rejected and a polite, encouraging status update will be sent to ${confirmAction.candidate.email}.`
-                : `Are you sure you want to permanently remove ${confirmAction.candidate.name} from the candidate dashboard and database? This action cannot be undone.`}
+                  ? `${confirmAction.candidate.name} will be marked as Rejected and a polite, encouraging status update will be sent to ${confirmAction.candidate.email}.`
+                  : `Are you sure you want to permanently remove ${confirmAction.candidate.name} from the candidate dashboard and database? This action cannot be undone.`}
             </p>
 
             <div className="flex justify-end space-x-2 pt-2">
@@ -2108,17 +2693,16 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 type="button"
                 onClick={handleConfirmStatusChange}
                 disabled={actionProcessing}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer ${
-                  confirmAction.action === 'Delete'
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 cursor-pointer ${confirmAction.action === 'Delete'
                     ? 'bg-rose-600 text-white hover:bg-rose-700'
                     : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                }`}
+                  }`}
               >
                 {actionProcessing
                   ? 'Processing...'
                   : confirmAction.action === 'Delete'
-                  ? 'Delete Candidate'
-                  : 'Confirm & Send Email'}
+                    ? 'Delete Candidate'
+                    : 'Confirm & Send Email'}
               </button>
             </div>
           </div>
@@ -2148,7 +2732,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
             </div>
 
             <form onSubmit={handleConfirmInterview} className="space-y-5">
-              
+
               {/* Interactive Calendar Header & Navigation */}
               <div className="rounded-2xl border border-border bg-muted/30 p-4 space-y-4">
                 <div className="flex items-center justify-between">
@@ -2217,15 +2801,14 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                           type="button"
                           disabled={isPast}
                           onClick={() => updateInterviewSchedule(thisDate, selectedTimeSlot)}
-                          className={`h-9 w-9 mx-auto flex items-center justify-center rounded-xl text-xs font-bold transition-all ${
-                            isSelected
+                          className={`h-9 w-9 mx-auto flex items-center justify-center rounded-xl text-xs font-bold transition-all ${isSelected
                               ? 'bg-[#a53861] text-white shadow-md scale-105'
                               : isToday
-                              ? 'border-2 border-[#a53861] text-[#a53861] hover:bg-accent'
-                              : isPast
-                              ? 'text-muted-foreground/30 cursor-not-allowed'
-                              : 'text-foreground hover:bg-accent cursor-pointer'
-                          }`}
+                                ? 'border-2 border-[#a53861] text-[#a53861] hover:bg-accent'
+                                : isPast
+                                  ? 'text-muted-foreground/30 cursor-not-allowed'
+                                  : 'text-foreground hover:bg-accent cursor-pointer'
+                            }`}
                         >
                           {dayNum}
                         </button>
@@ -2271,11 +2854,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                         key={slot}
                         type="button"
                         onClick={() => updateInterviewSchedule(selectedInterviewDate, slot, false)}
-                        className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                          selectedTimeSlot === slot
+                        className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedTimeSlot === slot
                             ? 'bg-[#5f7f7a] text-white border-[#5f7f7a] shadow-xs'
                             : 'bg-background border-border text-foreground hover:bg-muted cursor-pointer'
-                        }`}
+                          }`}
                       >
                         {slot}
                       </button>
@@ -2542,9 +3124,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   <button
                     type="submit"
                     disabled={sendingCustomMessage || !customMessage.trim()}
-                    className={`inline-flex items-center rounded-md px-5 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs ${
-                      messageChannel === 'whatsapp' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
-                    }`}
+                    className={`inline-flex items-center rounded-md px-5 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 cursor-pointer shadow-xs ${messageChannel === 'whatsapp' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
+                      }`}
                   >
                     {sendingCustomMessage ? (
                       <>
@@ -2731,15 +3312,14 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   <h3 className="font-display text-xl font-bold text-foreground">{activeModal.candidate.name}</h3>
                   {renderStatusBadge(activeModal.candidate.status)}
                   {/* Role Badge */}
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${
-                    activeModal.candidate.role.toLowerCase().includes('hr') || activeModal.candidate.role.toLowerCase().includes('human resource')
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold border ${activeModal.candidate.role.toLowerCase().includes('hr') || activeModal.candidate.role.toLowerCase().includes('human resource')
                       ? 'bg-blue-100 text-blue-800 border-blue-300'
                       : activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm')
-                      ? 'bg-purple-100 text-purple-800 border-purple-300'
-                      : activeModal.candidate.role.toLowerCase().includes('barista')
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      : 'bg-amber-100 text-amber-800 border-amber-300'
-                  }`}>
+                        ? 'bg-purple-100 text-purple-800 border-purple-300'
+                        : activeModal.candidate.role.toLowerCase().includes('barista')
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }`}>
                     {activeModal.candidate.role}
                   </span>
                 </div>
@@ -2808,7 +3388,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   </div>
                 </div>
               )}
-              
+
               {activeModal.candidate.ai_evaluation ? (
                 <>
                   {/* Scores Grid */}
@@ -2819,31 +3399,31 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
 
                     const items = isHR
                       ? [
-                          { label: 'HR & Multi-Branch Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 35 },
-                          { label: 'HR Ops & Compliance', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
-                          { label: 'People Mgmt & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 20 },
-                          { label: 'Stability & Mobility', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
-                        ]
+                        { label: 'HR & Multi-Branch Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 35 },
+                        { label: 'HR Ops & Compliance', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                        { label: 'People Mgmt & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 20 },
+                        { label: 'Stability & Mobility', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                      ]
                       : isGM
-                      ? [
+                        ? [
                           { label: 'Multi-Outlet & P&L', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 35 },
                           { label: 'People Leadership', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 25 },
                           { label: 'QSR / Cafe Relevance', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 20 },
                           { label: 'Consistency & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 20 },
                         ]
-                      : isBarista
-                      ? [
-                          { label: 'Barista & F&B Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
-                          { label: 'Coffee & Boba Craft', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
-                          { label: 'Customer Service & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
-                          { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
-                        ]
-                      : [
-                          { label: 'QSR & Cafe Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
-                          { label: 'Operations & Service Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
-                          { label: 'Customer Handling & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
-                          { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
-                        ];
+                        : isBarista
+                          ? [
+                            { label: 'Barista & F&B Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
+                            { label: 'Coffee & Boba Craft', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                            { label: 'Customer Service & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                            { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                          ]
+                          : [
+                            { label: 'QSR & Cafe Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
+                            { label: 'Operations & Service Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                            { label: 'Customer Handling & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                            { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                          ];
 
                     return (
                       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
@@ -2876,13 +3456,13 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                         {typeof activeModal.candidate.ai_score === 'number'
                           ? activeModal.candidate.ai_score
                           : typeof activeModal.candidate.ai_evaluation?.total_score === 'number'
-                          ? activeModal.candidate.ai_evaluation.total_score
-                          : activeModal.candidate.ai_evaluation?.criteria_breakdown
-                          ? (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.experience_points) || 0) +
-                            (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.skills_points) || 0) +
-                            (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.communication_points) || 0) +
-                            (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.stability_education_points) || 0)
-                          : 0}
+                            ? activeModal.candidate.ai_evaluation.total_score
+                            : activeModal.candidate.ai_evaluation?.criteria_breakdown
+                              ? (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.experience_points) || 0) +
+                              (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.skills_points) || 0) +
+                              (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.communication_points) || 0) +
+                              (Number(activeModal.candidate.ai_evaluation.criteria_breakdown.stability_education_points) || 0)
+                              : 0}
                         <span className="text-sm font-semibold text-muted-foreground"> / 100</span>
                       </p>
                     </div>
@@ -2916,11 +3496,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                         <h5 className="text-xs font-bold uppercase tracking-wider text-[#2d1822] flex items-center gap-1.5">
                           <span>✅</span> Mandatory Role Eligibility Verification
                         </h5>
-                        <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border ${
-                          activeModal.candidate.ai_evaluation.mandatory_eligibility.overall_eligible
+                        <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold border ${activeModal.candidate.ai_evaluation.mandatory_eligibility.overall_eligible
                             ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                             : 'bg-amber-100 text-amber-800 border-amber-300'
-                        }`}>
+                          }`}>
                           {activeModal.candidate.ai_evaluation.mandatory_eligibility.overall_eligible ? 'Eligible' : 'Eligibility Gap Noted'}
                         </span>
                       </div>
@@ -2994,7 +3573,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                                 {activeModal.candidate.ai_evaluation.mandatory_eligibility.barista_training_verified ? '✓ Verified' : '✕ Not Verified'}
                               </span>
                             </div>
-                        )}
+                          )}
                         {activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_1_year_qsr_verified !== undefined && (
                           <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
                             <span className="text-muted-foreground font-medium">Min 1 Yr QSR:</span>
@@ -3103,7 +3682,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                               Direct & indirect evidence extracted from the candidate's CV for each criterion.
                             </p>
                           </div>
-                          
+
                           {/* Search criteria */}
                           <div className="relative w-full sm:w-56">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -3127,11 +3706,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                               <button
                                 type="button"
                                 onClick={() => setCriteriaCategoryFilter('all')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${
-                                  criteriaCategoryFilter === 'all'
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${criteriaCategoryFilter === 'all'
                                     ? 'bg-primary text-primary-foreground border-primary'
                                     : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted'
-                                }`}
+                                  }`}
                               >
                                 All ({activeModal.candidate.ai_evaluation.evaluated_questions.length})
                               </button>
@@ -3142,11 +3720,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                                     key={cat}
                                     type="button"
                                     onClick={() => setCriteriaCategoryFilter(cat)}
-                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${
-                                      criteriaCategoryFilter === cat
+                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${criteriaCategoryFilter === cat
                                         ? 'bg-primary text-primary-foreground border-primary'
                                         : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted'
-                                    }`}
+                                      }`}
                                   >
                                     {cat} ({count})
                                   </button>
@@ -3173,7 +3750,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                               const isDirect = item.status?.toLowerCase().includes('direct');
                               const isIndirect = item.status?.toLowerCase().includes('indirect');
                               const isGap = item.status?.toLowerCase().includes('gap') || item.status?.toLowerCase().includes('risk');
-                              
+
                               return (
                                 <div
                                   key={idx}
@@ -3189,15 +3766,14 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                                       </span>
                                     </div>
                                     <span
-                                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 ${
-                                        isDirect
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 ${isDirect
                                           ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                                           : isIndirect
-                                          ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                          : isGap
-                                          ? 'bg-rose-100 text-rose-800 border-rose-300'
-                                          : 'bg-slate-100 text-slate-700 border-slate-300'
-                                      }`}
+                                            ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                            : isGap
+                                              ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                                        }`}
                                     >
                                       {item.status || 'Evaluated'}
                                     </span>
@@ -3404,11 +3980,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
               {batchWhatsAppItems.map((item, idx) => (
                 <div
                   key={item.candidate.id}
-                  className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-colors ${
-                    item.opened
+                  className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-colors ${item.opened
                       ? 'bg-emerald-50/50 border-emerald-300'
                       : 'bg-muted/30 border-border'
-                  }`}
+                    }`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -3433,11 +4008,10 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       updated[idx].opened = true;
                       setBatchWhatsAppItems(updated);
                     }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0 ${
-                      item.opened
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0 ${item.opened
                         ? 'bg-muted hover:bg-muted/80 text-foreground border border-border'
                         : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    }`}
+                      }`}
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
                     <span>{item.opened ? 'Re-open' : 'Open WhatsApp Web'}</span>
