@@ -1860,23 +1860,20 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
             <div className="space-y-3">
               {/* Auto-Sync status & toggle strip */}
               <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={toggleAutoSync}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer border ${
-                      autoSyncActive
-                        ? 'bg-[#a53861]/10 text-[#a53861] border-[#a53861]/30 hover:bg-[#a53861]/20'
-                        : 'bg-muted text-muted-foreground border-border hover:text-foreground'
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${autoSyncActive ? 'bg-[#a53861]' : 'bg-muted-foreground'}`} />
-                    <span>Auto-Sync (3s): {autoSyncActive ? 'Active' : 'Paused'}</span>
-                  </button>
+                <div className="flex items-center gap-3">
+                  <label className="inline-flex items-center gap-1.5 text-xs text-foreground font-medium cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoSyncActive}
+                      onChange={toggleAutoSync}
+                      className="rounded text-[#a53861] focus:ring-[#a53861]"
+                    />
+                    <span>Auto-sync new leads</span>
+                  </label>
 
                   {autoSyncActive && (
                     <span className="text-[11px] text-muted-foreground">
-                      {isSilentPolling ? 'Checking...' : lastAutoSyncTime ? `Last checked ${lastAutoSyncTime.toLocaleTimeString()}` : 'Running'}
+                      {isSilentPolling ? 'Checking...' : lastAutoSyncTime ? `Last checked ${lastAutoSyncTime.toLocaleTimeString()}` : ''}
                     </span>
                   )}
                 </div>
@@ -2040,14 +2037,6 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   className="inline-flex items-center justify-center rounded-lg bg-[#a53861] hover:bg-[#8c2d50] px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50 cursor-pointer h-[36px] whitespace-nowrap"
                 >
                   {batchImporting ? 'Processing...' : 'Upload & Process'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={downloadSampleCSV}
-                  className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer h-[36px] whitespace-nowrap"
-                >
-                  Sample CSV
                 </button>
               </form>
 
