@@ -17,7 +17,6 @@ import {
   ExternalLink,
   FileSpreadsheet,
   FileText,
-  Globe,
   Link2,
   Loader2,
   Mail,
@@ -32,8 +31,6 @@ import {
   Upload,
   X,
   XCircle,
-  Zap,
-  Radio,
 } from 'lucide-react';
 
 interface Candidate {
@@ -821,7 +818,7 @@ export default function AdminDashboard() {
   };
 
   // Google Sheets & Meta Ads Lead Sync System
-  const [leadSourceTab, setLeadSourceTab] = useState<'sheet' | 'file' | 'script'>('sheet');
+  const [leadSourceTab, setLeadSourceTab] = useState<'sheet' | 'file'>('sheet');
   const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
   const [autoInviteToggle, setAutoInviteToggle] = useState<boolean>(true);
   const [sheetSyncing, setSheetSyncing] = useState<boolean>(false);
@@ -848,7 +845,6 @@ export default function AdminDashboard() {
     emailsSent: number;
     whatsappSent: number;
   } | null>(null);
-  const [copiedScript, setCopiedScript] = useState<boolean>(false);
 
   // Automated Real-Time Background Auto-Sync State (3s default)
   const [autoSyncActive, setAutoSyncActive] = useState<boolean>(() => {
@@ -903,7 +899,7 @@ export default function AdminDashboard() {
           if (data.newCount > 0) {
             setAutoSyncSessionCount((prev) => prev + data.newCount);
             setAutoSyncNotification(
-              `⚡ Auto-Sync: ${data.newCount} new lead(s) automatically imported from Google Sheet!`
+              `Auto-sync: ${data.newCount} new lead(s) imported from Google Sheet.`
             );
             fetchCandidates();
             setTimeout(() => {
@@ -1820,205 +1816,122 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           </div>
         </section>
 
-        {/* Unified Meta Ads & Google Sheets CRM Sync Section */}
-        <section className="rounded-2xl border border-border bg-card p-5 shadow-panel space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/80 pb-3.5">
+        {/* Lead Ingestion & Google Sheets Sync Section */}
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
             <div>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#a53861]/10 text-[#a53861] flex items-center justify-center font-bold">
-                  <FileSpreadsheet className="h-4 w-4" />
-                </div>
-                <h3 className="font-display text-base sm:text-lg font-bold text-foreground">
-                  Meta Ads Leads & Google Sheets Sync
-                </h3>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  CRM Auto-Sync
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Ingest instant form leads from your Meta CRM Google Sheet or upload exports to evaluate candidate eligibility and dispatch resume upload invites.
+              <h3 className="text-sm sm:text-base font-bold text-foreground">
+                Lead Ingestion
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Import candidates from your Meta CRM Google Sheet or upload offline spreadsheets.
               </p>
             </div>
 
             {/* Tab Switcher */}
-            <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1 gap-1 shrink-0">
+            <div className="inline-flex rounded-lg border border-border bg-muted/30 p-1 gap-1 shrink-0">
               <button
                 type="button"
                 onClick={() => setLeadSourceTab('sheet')}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                   leadSourceTab === 'sheet'
                     ? 'bg-card text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Globe className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Google Sheet Live Sync</span>
+                Google Sheet
               </button>
               <button
                 type="button"
                 onClick={() => setLeadSourceTab('file')}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                   leadSourceTab === 'file'
                     ? 'bg-card text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Upload className="h-3.5 w-3.5 text-primary" />
-                <span>File Upload (.csv / .xlsx)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setLeadSourceTab('script')}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                  leadSourceTab === 'script'
-                    ? 'bg-card text-foreground shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                <span>Auto-Webhook</span>
+                CSV / Excel File
               </button>
             </div>
           </div>
 
-          {/* TAB 1: GOOGLE SHEETS LIVE SYNC */}
+          {/* TAB 1: GOOGLE SHEET SYNC */}
           {leadSourceTab === 'sheet' && (
-            <div className="space-y-4">
-              {/* Live Auto-Sync Control Ribbon */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-border bg-muted/20">
-                <div className="flex flex-wrap items-center gap-2.5">
+            <div className="space-y-3">
+              {/* Auto-Sync status & toggle strip */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={toggleAutoSync}
-                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all shadow-xs cursor-pointer select-none ${
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer border ${
                       autoSyncActive
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/30'
-                        : 'bg-muted hover:bg-muted/80 text-foreground border border-border'
+                        ? 'bg-[#a53861]/10 text-[#a53861] border-[#a53861]/30 hover:bg-[#a53861]/20'
+                        : 'bg-muted text-muted-foreground border-border hover:text-foreground'
                     }`}
-                    title={autoSyncActive ? 'Click to pause automatic polling' : 'Click to enable real-time 3-second polling'}
                   >
-                    {autoSyncActive ? (
-                      <>
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                        </span>
-                        <span>Auto-Sync: ACTIVE</span>
-                      </>
-                    ) : (
-                      <>
-                        <Radio className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Auto-Sync: OFF</span>
-                      </>
-                    )}
+                    <span className={`h-1.5 w-1.5 rounded-full ${autoSyncActive ? 'bg-[#a53861]' : 'bg-muted-foreground'}`} />
+                    <span>Auto-Sync (3s): {autoSyncActive ? 'Active' : 'Paused'}</span>
                   </button>
 
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">Interval:</span>
-                    <select
-                      value={autoSyncInterval}
-                      onChange={(e) => handleIntervalChange(Number(e.target.value))}
-                      className="rounded-lg border border-input bg-card px-2 py-1 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861]"
-                    >
-                      <option value={3}>3 seconds (Ultra Fast)</option>
-                      <option value={5}>5 seconds</option>
-                      <option value={10}>10 seconds</option>
-                      <option value={30}>30 seconds</option>
-                    </select>
-                  </div>
-
                   {autoSyncActive && (
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground pl-1">
-                      {isSilentPolling ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          <span>Checking sheet...</span>
-                        </span>
-                      ) : lastAutoSyncTime ? (
-                        <span className="text-muted-foreground">
-                          Last checked at <strong className="text-foreground">{lastAutoSyncTime.toLocaleTimeString()}</strong>
-                        </span>
-                      ) : null}
-
-                      {autoSyncSessionCount > 0 && (
-                        <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
-                          +{autoSyncSessionCount} leads collected live
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-[11px] text-muted-foreground">
-                  {autoSyncActive ? (
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                      <Zap className="h-3.5 w-3.5 fill-emerald-500 text-emerald-600" />
-                      Live background polling is running
+                    <span className="text-[11px] text-muted-foreground">
+                      {isSilentPolling ? 'Checking...' : lastAutoSyncTime ? `Last checked ${lastAutoSyncTime.toLocaleTimeString()}` : 'Running'}
                     </span>
-                  ) : (
-                    <span>Toggle ON for continuous hands-free lead ingestion</span>
                   )}
                 </div>
+
+                <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoInviteToggle}
+                    onChange={(e) => setAutoInviteToggle(e.target.checked)}
+                    className="rounded text-[#a53861] focus:ring-[#a53861]"
+                  />
+                  <span>Send upload invites automatically</span>
+                </label>
               </div>
 
-              {/* Real-time Notification Banner */}
+              {/* Notification Banner */}
               {autoSyncNotification && (
-                <div className="rounded-xl border border-emerald-400 bg-emerald-100/90 text-emerald-950 p-3 flex items-center justify-between gap-3 text-xs font-bold shadow-md animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-emerald-700 fill-emerald-600 shrink-0" />
-                    <span>{autoSyncNotification}</span>
-                  </div>
+                <div className="rounded-lg border border-[#a53861]/30 bg-[#a53861]/5 px-3 py-2 flex items-center justify-between text-xs text-foreground font-medium">
+                  <span>{autoSyncNotification}</span>
                   <button
                     type="button"
                     onClick={() => setAutoSyncNotification(null)}
-                    className="text-emerald-900 hover:text-black font-extrabold text-sm px-1.5"
+                    className="text-muted-foreground hover:text-foreground text-xs font-bold pl-2"
                   >
-                    ✕
+                    Dismiss
                   </button>
                 </div>
               )}
 
-              <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+              {/* Sheet URL & Action Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <div className="relative flex-1 min-w-0">
-                  <Link2 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="url"
                     value={googleSheetUrl}
                     onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                    placeholder="Paste Meta Ads CRM Google Sheet URL (e.g. https://docs.google.com/spreadsheets/d/...)"
-                    className="w-full rounded-xl border border-input bg-background pl-9 pr-3 py-2 text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#a53861] h-[38px]"
+                    placeholder="Paste Google Sheets link (e.g. https://docs.google.com/spreadsheets/d/...)"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861] h-[36px]"
                   />
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs font-medium text-foreground cursor-pointer select-none h-[38px]">
-                    <input
-                      type="checkbox"
-                      checked={autoInviteToggle}
-                      onChange={(e) => setAutoInviteToggle(e.target.checked)}
-                      className="rounded text-[#a53861] focus:ring-[#a53861]"
-                    />
-                    <span className="whitespace-nowrap">Auto-send CV links</span>
-                  </label>
-
                   <button
                     type="button"
                     disabled={sheetPreviewing || sheetSyncing || !googleSheetUrl.trim()}
                     onClick={() => handleSyncGoogleSheet(true)}
-                    className="inline-flex items-center justify-center rounded-xl border border-border bg-background hover:bg-muted px-4 py-2 text-xs font-bold text-foreground transition-all disabled:opacity-50 cursor-pointer shadow-xs h-[38px] whitespace-nowrap"
-                    title="Check how many new leads are currently in the sheet"
+                    className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors disabled:opacity-50 cursor-pointer h-[36px]"
                   >
                     {sheetPreviewing ? (
                       <>
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-primary" />
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         <span>Checking...</span>
                       </>
                     ) : (
-                      <>
-                        <Search className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Preview Leads</span>
-                      </>
+                      <span>Preview</span>
                     )}
                   </button>
 
@@ -2026,81 +1939,54 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     type="button"
                     disabled={sheetSyncing || sheetPreviewing || !googleSheetUrl.trim()}
                     onClick={() => handleSyncGoogleSheet(false)}
-                    className="inline-flex items-center justify-center rounded-xl bg-[#a53861] hover:bg-[#8c2d50] px-5 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer shadow-xs h-[38px] whitespace-nowrap"
+                    className="inline-flex items-center justify-center rounded-lg bg-[#a53861] hover:bg-[#8c2d50] px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50 cursor-pointer h-[36px]"
                   >
                     {sheetSyncing ? (
                       <>
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        <span>Syncing Leads...</span>
+                        <span>Syncing...</span>
                       </>
                     ) : (
-                      <>
-                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                        <span>Sync Now</span>
-                      </>
+                      <span>Sync Now</span>
                     )}
                   </button>
                 </div>
               </div>
 
-              {/* Sheet Notice / Instruction */}
-              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                <span>💡</span>
-                <span>
-                  Make sure your Google Sheet sharing is set to <strong>"Anyone with the link can view"</strong> so BobaHire can continuously read incoming Meta Ads rows.
-                </span>
+              <p className="text-[11px] text-muted-foreground">
+                Ensure the Google Sheet sharing setting is set to &ldquo;Anyone with the link can view&rdquo;.
               </p>
 
-              {/* Preview Leads Card */}
+              {/* Preview Drawer */}
               {sheetPreviewData && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3 animate-in fade-in duration-150">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span className="text-xs font-bold text-emerald-950">
-                        {sheetPreviewData.totalFound} Total Leads in Sheet
-                      </span>
-                      <span className="text-xs font-medium text-emerald-800">
-                        ({sheetPreviewData.newCount} new to import • {sheetPreviewData.existingCount} already enrolled)
-                      </span>
-                    </div>
-
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-foreground">
+                      {sheetPreviewData.totalFound} rows found ({sheetPreviewData.newCount} new, {sheetPreviewData.existingCount} already saved)
+                    </span>
                     {sheetPreviewData.newCount > 0 && (
                       <button
                         type="button"
                         disabled={sheetSyncing}
                         onClick={() => handleSyncGoogleSheet(false)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition-colors cursor-pointer"
+                        className="px-2.5 py-1 rounded bg-[#a53861] text-white font-semibold text-xs hover:bg-[#8c2d50] cursor-pointer"
                       >
-                        {sheetSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                        <span>Import {sheetPreviewData.newCount} New Leads Now</span>
+                        Import {sheetPreviewData.newCount} Leads
                       </button>
                     )}
                   </div>
 
                   {sheetPreviewData.leads.length > 0 && (
-                    <div className="max-h-48 overflow-y-auto rounded-lg border border-emerald-200/80 bg-card divide-y divide-border text-xs">
-                      {sheetPreviewData.leads.slice(0, 8).map((lead, idx) => (
-                        <div key={idx} className="flex items-center justify-between px-3 py-2 gap-2">
-                          <div className="min-w-0 flex-1 truncate">
-                            <span className="font-bold text-foreground">{lead.name}</span>
-                            <span className="text-muted-foreground mx-1.5">•</span>
-                            <span className="text-muted-foreground font-mono">{lead.email}</span>
-                            {lead.phone && (
-                              <>
-                                <span className="text-muted-foreground mx-1.5">•</span>
-                                <span className="text-muted-foreground">{lead.phone}</span>
-                              </>
-                            )}
-                          </div>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                              lead.isExisting
-                                ? 'bg-muted text-muted-foreground border border-border'
-                                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            }`}
-                          >
-                            {lead.isExisting ? 'Already in Database' : 'New Lead'}
+                    <div className="max-h-40 overflow-y-auto rounded border border-border bg-card divide-y divide-border">
+                      {sheetPreviewData.leads.slice(0, 6).map((lead, idx) => (
+                        <div key={idx} className="flex items-center justify-between px-3 py-1.5">
+                          <span className="truncate">
+                            <strong className="text-foreground">{lead.name}</strong> • {lead.email}
+                          </span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                            lead.isExisting ? 'text-muted-foreground bg-muted' : 'text-[#a53861] bg-[#a53861]/10'
+                          }`}>
+                            {lead.isExisting ? 'Existing' : 'New'}
                           </span>
                         </div>
                       ))}
@@ -2109,20 +1995,13 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 </div>
               )}
 
-              {/* Sync Result Banner */}
+              {/* Sync Result */}
               {sheetSyncResult && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-emerald-800">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                    <span>
-                      Sync complete! Processed {sheetSyncResult.totalProcessed} lead(s):{' '}
-                      <strong>{sheetSyncResult.newCount} newly enrolled</strong> ({sheetSyncResult.existingCount} already present).
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px]">
-                    <span>📧 {sheetSyncResult.emailsSent} Emails Dispatched</span>
-                    <span>💬 {sheetSyncResult.whatsappSent} WhatsApp Invites Sent</span>
-                  </div>
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs flex items-center justify-between text-muted-foreground">
+                  <span>
+                    Sync finished: <strong>{sheetSyncResult.newCount} new candidate(s) enrolled</strong> ({sheetSyncResult.existingCount} already present).
+                  </span>
+                  <span>{sheetSyncResult.emailsSent} invites dispatched</span>
                 </div>
               )}
             </div>
@@ -2131,22 +2010,22 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           {/* TAB 2: MANUAL CSV / EXCEL FILE UPLOAD */}
           {leadSourceTab === 'file' && (
             <div className="space-y-3">
-              <form onSubmit={handleBatchFileUpload} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+              <form onSubmit={handleBatchFileUpload} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <input
                     type="file"
                     accept=".csv,.txt,.xlsx,.xls"
                     onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                    className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#a53861] file:text-white hover:file:bg-[#8c2d50] cursor-pointer border border-input rounded-xl bg-background p-1"
+                    className="block w-full text-xs text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#a53861] file:text-white hover:file:bg-[#8c2d50] cursor-pointer border border-input rounded-lg bg-background p-1"
                   />
                 </div>
 
-                <div className="w-full md:w-56">
+                <div className="w-full sm:w-48">
                   <select
-                    aria-label="Select target role for uploaded leads"
+                    aria-label="Select role override"
                     value={uploadRoleOverride}
                     onChange={(e) => setUploadRoleOverride(e.target.value)}
-                    className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-[#a53861] h-[38px]"
+                    className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861] h-[36px]"
                   >
                     <option value="HR Executive">HR Executive</option>
                     <option value="General Manager">Manager</option>
@@ -2158,115 +2037,25 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                 <button
                   type="submit"
                   disabled={batchImporting || !csvFile}
-                  className="inline-flex w-full md:w-auto items-center justify-center rounded-xl bg-[#a53861] px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-[#8c2d50] disabled:opacity-50 cursor-pointer shrink-0 shadow-xs h-[38px]"
+                  className="inline-flex items-center justify-center rounded-lg bg-[#a53861] hover:bg-[#8c2d50] px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50 cursor-pointer h-[36px] whitespace-nowrap"
                 >
-                  <Upload className="mr-1.5 h-4 w-4" />
-                  {batchImporting ? 'Processing...' : 'Upload & Evaluate'}
+                  {batchImporting ? 'Processing...' : 'Upload & Process'}
                 </button>
 
                 <button
                   type="button"
                   onClick={downloadSampleCSV}
-                  className="inline-flex items-center justify-center rounded-xl border border-border bg-background hover:bg-muted px-3.5 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer shrink-0 h-[38px]"
-                  title="Download a pre-formatted Meta Ads Leads CSV template"
+                  className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer h-[36px] whitespace-nowrap"
                 >
-                  <Download className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                  <span>Sample CSV</span>
+                  Sample CSV
                 </button>
               </form>
 
               {importStatus && (
-                <p className="mt-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <p className="text-xs text-muted-foreground bg-muted/20 border border-border rounded-lg p-2.5">
                   Processed {importStatus.processed} of {importStatus.total} leads. Sent {importStatus.emailsSent} invitation emails.
                 </p>
               )}
-            </div>
-          )}
-
-          {/* TAB 3: REAL-TIME WEBHOOK APPS SCRIPT GUIDE */}
-          {leadSourceTab === 'script' && (
-            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3.5 text-xs text-foreground">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2.5">
-                <div>
-                  <h4 className="font-bold text-foreground text-sm">
-                    Automated Real-Time Push (Google Apps Script)
-                  </h4>
-                  <p className="text-muted-foreground text-[11px] mt-0.5">
-                    Trigger BobaHire instantaneously whenever Meta Ads appends a new lead row to your Google Sheet — without clicking buttons!
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com';
-                    const scriptCode = `/**
- * BobaHire Auto-Sync Webhook for Meta Ads Google Sheets
- * 1. In Google Sheets: Click Extensions > Apps Script
- * 2. Paste this code and save (Ctrl+S)
- * 3. Click Triggers (clock icon on left) > Add Trigger
- *    - Choose which function to run: onMetaLeadAdded
- *    - Select event source: From spreadsheet
- *    - Select event type: On change
- */
-function onMetaLeadAdded(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
-
-  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  var rowValues = sheet.getRange(lastRow, 1, 1, sheet.getLastColumn()).getValues()[0];
-
-  var leadObj = {};
-  for (var i = 0; i < headers.length; i++) {
-    leadObj[headers[i]] = rowValues[i];
-  }
-
-  var webhookUrl = "${baseUrl}/api/sync-google-sheets";
-  var options = {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({
-      row: leadObj,
-      action: "sync",
-      sendInvites: true
-    }),
-    muteHttpExceptions: true
-  };
-
-  try {
-    UrlFetchApp.fetch(webhookUrl, options);
-  } catch (err) {
-    Logger.log("Error posting lead to BobaHire: " + err);
-  }
-}`;
-                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                      navigator.clipboard.writeText(scriptCode);
-                      setCopiedScript(true);
-                      setTimeout(() => setCopiedScript(false), 2500);
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background hover:bg-muted px-3 py-1.5 text-xs font-bold text-foreground cursor-pointer transition-colors shadow-xs shrink-0"
-                >
-                  <Copy className="h-3.5 w-3.5 text-primary" />
-                  <span>{copiedScript ? 'Copied Script!' : 'Copy Apps Script'}</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-muted-foreground">
-                <div className="p-3 rounded-lg border border-border bg-card space-y-1">
-                  <span className="font-bold text-foreground">Step 1: Open Apps Script</span>
-                  <p>In your Meta CRM Google Sheet, click the top menu: <strong>Extensions → Apps Script</strong>.</p>
-                </div>
-                <div className="p-3 rounded-lg border border-border bg-card space-y-1">
-                  <span className="font-bold text-foreground">Step 2: Paste Code & Save</span>
-                  <p>Click the <strong>Copy Apps Script</strong> button above, paste into the editor, and press <strong>Ctrl + S</strong>.</p>
-                </div>
-                <div className="p-3 rounded-lg border border-border bg-card space-y-1">
-                  <span className="font-bold text-foreground">Step 3: Add "On change" Trigger</span>
-                  <p>Click the Clock icon (Triggers) on the left sidebar → <strong>Add Trigger</strong> → select Event type: <strong>On change</strong>.</p>
-                </div>
-              </div>
             </div>
           )}
         </section>
