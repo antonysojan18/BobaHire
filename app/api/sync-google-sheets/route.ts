@@ -174,6 +174,7 @@ export async function POST(req: Request) {
             metaLeadId: lead.metaLeadId,
             homeState: lead.homeState,
             residingCity: lead.residingCity,
+            leadStatus: lead.leadStatus,
             fields: lead.fields,
             sendInvites: sendInvites,
           },

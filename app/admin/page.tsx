@@ -46,6 +46,7 @@ interface Candidate {
   residing_city?: string | null;
   questionnaire_data?: Record<string, any> | null;
   pre_screen_passed?: boolean | null;
+  meta_feedback_status?: string | null;
   status: string;
   resume_url: string | null;
   ai_score: number | null;
@@ -402,7 +403,18 @@ export default function AdminDashboard() {
           supabase.from('candidates').update({ ai_score: c.ai_evaluation.total_score }).eq('id', c.id).then();
         }
 
-        return { ...c, role: targetRole, ai_score: resolvedScore };
+        const resolvedFeedbackStatus =
+          c.meta_feedback_status ||
+          c.questionnaire_data?.meta_feedback_status ||
+          c.questionnaire_data?.lead_status ||
+          null;
+
+        return {
+          ...c,
+          role: targetRole,
+          ai_score: resolvedScore,
+          meta_feedback_status: resolvedFeedbackStatus,
+        };
       });
 
       setCandidates(normalizedCandidates);
@@ -820,7 +832,20 @@ export default function AdminDashboard() {
   // Google Sheets & Meta Ads Lead Sync System
   const [leadSourceTab, setLeadSourceTab] = useState<'sheet' | 'file'>('sheet');
   const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('HR Executive');
-  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>(
+    'https://docs.google.com/spreadsheets/d/16QjF1zjUJ0xDv_jF6ySA8SD68DEt9yHeS9k6QcpoNOc/edit?usp=sharing'
+  );
+  const [googleSheetUpdateUrl, setGoogleSheetUpdateUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('bobahire_google_sheet_update_url') || '';
+    }
+    return '';
+  });
+  const [sheetUpdateUrlInput, setSheetUpdateUrlInput] = useState<string>('');
+  const [showSheetSetupModal, setShowSheetSetupModal] = useState<boolean>(false);
+  const [updatingFeedbackId, setUpdatingFeedbackId] = useState<string | null>(null);
+  const [feedbackNotification, setFeedbackNotification] = useState<string | null>(null);
+  const [copiedScript, setCopiedScript] = useState<boolean>(false);
   const [autoInviteToggle, setAutoInviteToggle] = useState<boolean>(true);
   const [sheetSyncing, setSheetSyncing] = useState<boolean>(false);
   const [sheetPreviewing, setSheetPreviewing] = useState<boolean>(false);
@@ -869,7 +894,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('bobahire_google_sheet_url');
-      if (saved) setGoogleSheetUrl(saved);
+      if (saved) {
+        setGoogleSheetUrl(saved);
+      } else {
+        setGoogleSheetUrl('https://docs.google.com/spreadsheets/d/16QjF1zjUJ0xDv_jF6ySA8SD68DEt9yHeS9k6QcpoNOc/edit?usp=sharing');
+      }
+      const savedScriptUrl = localStorage.getItem('bobahire_google_sheet_update_url');
+      if (savedScriptUrl) {
+        setGoogleSheetUpdateUrl(savedScriptUrl);
+        setSheetUpdateUrlInput(savedScriptUrl);
+      }
     }
   }, []);
 
@@ -992,6 +1026,83 @@ export default function AdminDashboard() {
     } finally {
       setSheetPreviewing(false);
       setSheetSyncing(false);
+    }
+  };
+
+  const handleSaveSheetUpdateUrl = (urlToSave: string) => {
+    const clean = urlToSave.trim();
+    setGoogleSheetUpdateUrl(clean);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bobahire_google_sheet_update_url', clean);
+    }
+    setShowSheetSetupModal(false);
+    setFeedbackNotification('Google Apps Script Web App URL saved successfully.');
+    setTimeout(() => setFeedbackNotification(null), 4000);
+  };
+
+  const handleUpdateMetaFeedback = async (
+    candidate: Candidate,
+    status: 'QUALIFIED' | 'CONVERTED' | 'NOT_INTERESTED'
+  ) => {
+    setUpdatingFeedbackId(`${candidate.id}_${status}`);
+
+    // Optimistically update candidate in state
+    setCandidates((prev) =>
+      prev.map((c) =>
+        c.id === candidate.id ? { ...c, meta_feedback_status: status } : c
+      )
+    );
+
+    try {
+      const res = await fetch('/api/update-google-sheet-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: candidate.id,
+          email: candidate.email,
+          metaLeadId: candidate.meta_lead_id || candidate.questionnaire_data?.id,
+          status,
+          sheetUrl: googleSheetUrl,
+          sheetUpdateUrl: googleSheetUpdateUrl,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update status');
+      }
+
+      const label =
+        status === 'QUALIFIED'
+          ? 'Qualified'
+          : status === 'CONVERTED'
+            ? 'Converted'
+            : 'Not Interested';
+
+      if (data.sheetUpdated) {
+        setFeedbackNotification(
+          `${candidate.name}: Status updated to "${label}" in Google Sheet & Database.`
+        );
+      } else if (data.needsSetup) {
+        setFeedbackNotification(
+          `${candidate.name}: Marked as "${label}" in database. Set up Google Apps Script to sync directly into Google Sheet.`
+        );
+        setShowSheetSetupModal(true);
+      } else {
+        setFeedbackNotification(
+          `${candidate.name}: Status updated to "${label}" in database.`
+        );
+      }
+
+      setTimeout(() => {
+        setFeedbackNotification(null);
+      }, 5000);
+    } catch (err: any) {
+      console.error('Failed to update meta feedback status:', err);
+      alert(`Could not update lead status: ${err.message}`);
+      fetchCandidates();
+    } finally {
+      setUpdatingFeedbackId(null);
     }
   };
 
@@ -1963,12 +2074,43 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       <span>Sync Now</span>
                     )}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSheetUpdateUrlInput(googleSheetUpdateUrl);
+                      setShowSheetSetupModal(true);
+                    }}
+                    className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer h-[36px]"
+                    title="Configure automatic writing of status (Qualified / Converted / Not Interested) back to Google Sheet"
+                  >
+                    <Link2 className="mr-1.5 h-3.5 w-3.5 text-[#a53861]" />
+                    <span>Sheet Sync Setup</span>
+                  </button>
                 </div>
               </div>
 
-              <p className="text-[11px] text-muted-foreground">
-                Ensure the Google Sheet sharing setting is set to &ldquo;Anyone with the link can view&rdquo;.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <p>
+                  Ensure the Google Sheet sharing setting is set to &ldquo;Anyone with the link can view&rdquo;.
+                </p>
+                {googleSheetUpdateUrl.trim() ? (
+                  <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
+                    <Check className="h-3 w-3 stroke-[3]" /> Sheet status write connected
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSheetUpdateUrlInput(googleSheetUpdateUrl);
+                      setShowSheetSetupModal(true);
+                    }}
+                    className="text-[#a53861] hover:underline cursor-pointer font-medium"
+                  >
+                    Connect live status write back to Google Sheet
+                  </button>
+                )}
+              </div>
 
               {/* Preview Drawer */}
               {sheetPreviewData && (
@@ -2156,6 +2298,23 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
             </div>
           </div>
 
+          {/* Meta Feedback Notification Banner */}
+          {feedbackNotification && (
+            <div className="bg-emerald-50 border-b border-emerald-200 px-6 py-2.5 flex items-center justify-between text-xs text-emerald-900 font-semibold animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>{feedbackNotification}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeedbackNotification(null)}
+                className="text-emerald-700 hover:text-emerald-900 text-xs font-bold pl-3 cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
           <div className="overflow-x-auto w-full pb-2">
             <table className="w-full min-w-[1600px] border-collapse text-sm">
               <thead>
@@ -2221,7 +2380,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       Total Points <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </th>
-                  <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] min-w-[560px] text-right">
+                  <th className="px-5 py-3.5 text-xs font-bold uppercase tracking-wide text-[#3d5a55] min-w-[760px] text-right">
                     Automated Actions
                   </th>
                 </tr>
@@ -2360,13 +2519,67 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                               View PDF
                             </button>
 
+                            {/* Meta Feedback Action Buttons: Qualified, Converted, Not Interested */}
+                            <div className="inline-flex items-center border-l border-border px-1 gap-1 bg-stone-50/70">
+                              <button
+                                type="button"
+                                title="Mark as Qualified (Updates Google Sheet & Database)"
+                                disabled={updatingFeedbackId === `${c.id}_QUALIFIED`}
+                                onClick={() => handleUpdateMetaFeedback(c, 'QUALIFIED')}
+                                className={`inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
+                                  c.meta_feedback_status === 'QUALIFIED'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+                                }`}
+                              >
+                                {updatingFeedbackId === `${c.id}_QUALIFIED` ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : null}
+                                Qualified
+                              </button>
+
+                              <button
+                                type="button"
+                                title="Mark as Converted (Updates Google Sheet & Database)"
+                                disabled={updatingFeedbackId === `${c.id}_CONVERTED`}
+                                onClick={() => handleUpdateMetaFeedback(c, 'CONVERTED')}
+                                className={`inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
+                                  c.meta_feedback_status === 'CONVERTED'
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                                }`}
+                              >
+                                {updatingFeedbackId === `${c.id}_CONVERTED` ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : null}
+                                Converted
+                              </button>
+
+                              <button
+                                type="button"
+                                title="Mark as Not Interested (Updates Google Sheet & Database)"
+                                disabled={updatingFeedbackId === `${c.id}_NOT_INTERESTED`}
+                                onClick={() => handleUpdateMetaFeedback(c, 'NOT_INTERESTED')}
+                                className={`inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
+                                  c.meta_feedback_status === 'NOT_INTERESTED'
+                                    ? 'bg-stone-700 text-white shadow-xs'
+                                    : 'text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-300'
+                                }`}
+                              >
+                                {updatingFeedbackId === `${c.id}_NOT_INTERESTED` ? (
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                ) : null}
+                                Not Interested
+                              </button>
+                            </div>
+
                             {/* Tick Button: Selects candidate, removes rank & places down */}
                             <button
                               type="button"
                               title="Select candidate (Removes rank & places at bottom)"
                               disabled={c.status === 'selected' || c.status === 'Selected'}
                               onClick={() => handleSelectCandidate(c)}
-                              className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 cursor-pointer transition-colors"
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-40 cursor-pointer transition-colors border-l border-border"
                             >
                               <Check className="h-4 w-4 text-emerald-600 stroke-[3]" />
                             </button>
@@ -2376,7 +2589,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                               type="button"
                               title="Delete candidate from dashboard & database"
                               onClick={() => setConfirmAction({ candidate: c, action: 'Delete' })}
-                              className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer transition-colors"
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 cursor-pointer transition-colors border-l border-border"
                             >
                               <X className="h-4 w-4 text-rose-600 stroke-[3]" />
                             </button>
@@ -3926,6 +4139,149 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           </div>
         );
       })()}
+
+      {/* Google Sheet Apps Script Web App Setup Modal */}
+      {showSheetSetupModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card rounded-2xl border border-border max-w-xl w-full p-6 space-y-4 shadow-2xl my-8 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-start border-b border-border pb-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-[#a53861]/10 text-[#a53861] flex items-center justify-center">
+                  <Link2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-foreground">
+                    Google Sheet Live Status Sync
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Write Qualified, Converted & Not Interested directly to your Google Sheet
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSheetSetupModal(false)}
+                className="text-muted-foreground hover:text-foreground text-lg font-bold p-1 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-foreground">
+              <p className="text-muted-foreground leading-relaxed">
+                Connect your Google Sheet so that clicking <strong>Qualified</strong>, <strong>Converted</strong>, or <strong>Not Interested</strong> updates the <strong>lead_status</strong> column automatically in real-time.
+              </p>
+
+              <div className="rounded-lg bg-muted/40 p-3 space-y-2 border border-border">
+                <div className="font-bold text-xs text-[#a53861]">3-Step Zero-Config Setup:</div>
+                <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground">
+                  <li>In your Google Sheet, click <strong>Extensions &gt; Apps Script</strong>.</li>
+                  <li>Replace any existing text with the script below and click <strong>Save</strong>.</li>
+                  <li>Click <strong>Deploy &gt; New deployment</strong>, select <strong>Web app</strong>, set <em>Who has access</em> to <strong>Anyone</strong>, click <strong>Deploy</strong>, and copy the Web App URL.</li>
+                </ol>
+              </div>
+
+              {/* Code Box with Copy Button */}
+              <div className="relative rounded-lg border border-border bg-stone-900 text-stone-100 p-3 font-mono text-[11px] max-h-48 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = `function doPost(e) {
+  try {
+    var raw = e.postData ? e.postData.contents : null;
+    if (!raw) return ContentService.createTextOutput(JSON.stringify({ success: false, error: "No data" })).setMimeType(ContentService.MimeType.JSON);
+    var data = JSON.parse(raw);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var values = sheet.getDataRange().getValues();
+    if (values.length < 1) return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Empty sheet" })).setMimeType(ContentService.MimeType.JSON);
+
+    var headers = values[0].map(function(h) { return String(h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''); });
+    var idCol = headers.indexOf('id');
+    var emailCol = headers.indexOf('email');
+    var statusCol = headers.indexOf('leadstatus');
+    if (statusCol === -1) {
+      for (var i = 0; i < headers.length; i++) {
+        if (headers[i].indexOf('status') !== -1) { statusCol = i; break; }
+      }
+    }
+    if (statusCol === -1) {
+      statusCol = values[0].length;
+      sheet.getRange(1, statusCol + 1).setValue('lead_status');
+    }
+
+    var targetEmail = String(data.email || '').trim().toLowerCase();
+    var rawId = String(data.metaLeadId || data.id || '').trim().replace(/^l:/, '');
+    var targetStatus = String(data.status || 'QUALIFIED').trim().toUpperCase();
+
+    var updated = false;
+    for (var r = 1; r < values.length; r++) {
+      var rowId = idCol !== -1 ? String(values[r][idCol] || '').replace(/^l:/, '').trim() : '';
+      var rowEmail = emailCol !== -1 ? String(values[r][emailCol] || '').trim().toLowerCase() : '';
+      if ((rawId && rowId && (rowId === rawId || rowId.indexOf(rawId) !== -1 || rawId.indexOf(rowId) !== -1)) || (targetEmail && rowEmail && rowEmail === targetEmail)) {
+        sheet.getRange(r + 1, statusCol + 1).setValue(targetStatus);
+        updated = true;
+        break;
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ success: true, updated: updated, status: targetStatus })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({ status: "active" })).setMimeType(ContentService.MimeType.JSON);
+}`;
+                    navigator.clipboard.writeText(code);
+                    setCopiedScript(true);
+                    setTimeout(() => setCopiedScript(false), 3000);
+                  }}
+                  className="absolute top-2 right-2 rounded bg-white/20 hover:bg-white/30 px-2.5 py-1 text-[11px] font-sans font-semibold text-white transition-colors cursor-pointer"
+                >
+                  {copiedScript ? 'Copied' : 'Copy Script'}
+                </button>
+                <pre className="pr-20 whitespace-pre">
+{`function doPost(e) {
+  // Automatically finds the lead by ID or email
+  // and updates the lead_status column in your Google Sheet
+  ...
+}`}
+                </pre>
+              </div>
+
+              {/* Input for Web App URL */}
+              <div className="space-y-1.5 pt-1">
+                <label className="block text-xs font-semibold text-foreground">
+                  Google Apps Script Web App URL:
+                </label>
+                <input
+                  type="url"
+                  value={sheetUpdateUrlInput}
+                  onChange={(e) => setSheetUpdateUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/.../exec"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+              <button
+                type="button"
+                onClick={() => setShowSheetSetupModal(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveSheetUpdateUrl(sheetUpdateUrlInput)}
+                className="px-4 py-1.5 rounded-lg bg-[#a53861] hover:bg-[#8c2d50] text-xs font-semibold text-white cursor-pointer shadow-xs"
+              >
+                Save Connection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </main>
   );

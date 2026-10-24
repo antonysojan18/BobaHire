@@ -13,6 +13,7 @@ export interface RawLeadData {
   metaLeadId?: string;
   homeState?: string;
   residingCity?: string;
+  leadStatus?: string;
   fields?: Record<string, any>;
   sendInvites?: boolean;
 }
@@ -79,6 +80,7 @@ export function normalizeMetaRow(row: Record<string, any>): {
   metaLeadId: string;
   homeState: string;
   residingCity: string;
+  leadStatus: string;
   fields: Record<string, any>;
 } {
   const getField = (...candidates: string[]): string => {
@@ -143,6 +145,9 @@ export function normalizeMetaRow(row: Record<string, any>): {
   const homeState = getField('home_state', 'state', 'please_select_your_home_state') || 'Kerala';
   const residingCity = getField('residing_city', 'city', 'location', 'current_city') || 'Kochi';
 
+  // Meta CRM Lead Status
+  const leadStatus = getField('lead_status', 'leadstatus', 'meta_lead_status', 'status');
+
   return {
     name,
     email,
@@ -151,6 +156,7 @@ export function normalizeMetaRow(row: Record<string, any>): {
     metaLeadId,
     homeState,
     residingCity,
+    leadStatus,
     fields: row,
   };
 }
@@ -170,6 +176,7 @@ export async function processCandidateLead(
   const metaLeadId = String(leadData.metaLeadId || '').trim();
   const homeState = String(leadData.homeState || 'Kerala').trim();
   const residingCity = String(leadData.residingCity || 'Kochi').trim();
+  const rawLeadStatus = String(leadData.leadStatus || '').trim().toUpperCase();
   const fields = leadData.fields || {};
   const shouldSendInvites = leadData.sendInvites !== false; // Default true
 
@@ -179,6 +186,10 @@ export async function processCandidateLead(
 
   // Run Meta Lead Screening Evaluation Logic
   const screening = evaluateMetaScreening(roleInput, fields);
+  if (rawLeadStatus) {
+    screening.questionnaire.lead_status = rawLeadStatus;
+    screening.questionnaire.meta_feedback_status = rawLeadStatus;
+  }
 
   // Build payload for Supabase database
   const payload: any = {
@@ -193,6 +204,9 @@ export async function processCandidateLead(
     pre_screen_passed: true,
     status: 'invited',
   };
+  if (rawLeadStatus) {
+    payload.meta_feedback_status = rawLeadStatus;
+  }
 
   let candidateData: any = null;
   let isExisting = false;
@@ -209,20 +223,39 @@ export async function processCandidateLead(
       candidateData = existingRecords[0];
       isExisting = true;
 
-      // Update phone/meta_lead_id if missing or changed
+      // Update phone/meta_lead_id/lead_status if missing or changed
       const updateData: any = {};
       if (phone && candidateData.phone !== phone) updateData.phone = phone;
       if (metaLeadId && !candidateData.meta_lead_id) updateData.meta_lead_id = metaLeadId;
+      if (rawLeadStatus) {
+        const currQ = candidateData.questionnaire_data || {};
+        updateData.questionnaire_data = {
+          ...currQ,
+          lead_status: rawLeadStatus,
+          meta_feedback_status: rawLeadStatus,
+        };
+        updateData.meta_feedback_status = rawLeadStatus;
+      }
 
       if (Object.keys(updateData).length > 0) {
         try {
-          const { data: updatedRecord } = await supabase
+          const { data: updatedRecord, error: updateErr } = await supabase
             .from('candidates')
             .update(updateData)
             .eq('id', candidateData.id)
             .select();
 
-          if (updatedRecord && updatedRecord.length > 0) {
+          if (updateErr) {
+            delete updateData.meta_feedback_status;
+            const { data: retryRecord } = await supabase
+              .from('candidates')
+              .update(updateData)
+              .eq('id', candidateData.id)
+              .select();
+            if (retryRecord && retryRecord.length > 0) {
+              candidateData = retryRecord[0];
+            }
+          } else if (updatedRecord && updatedRecord.length > 0) {
             candidateData = updatedRecord[0];
           }
         } catch (updateErr) {
@@ -246,33 +279,43 @@ export async function processCandidateLead(
     } else {
       console.warn('Full payload insert warning:', errFull?.message);
 
-      // Fallback inserting core fields
-      const fallbackPayload = {
-        name,
-        email,
-        phone: phone || null,
-        role: screening.normalizedRole,
-        residing_city: residingCity || 'Kochi',
-        status: 'invited',
-      };
-
-      const { data: insertedFallback } = await supabase
+      delete payload.meta_feedback_status;
+      const { data: insertedFallbackQ } = await supabase
         .from('candidates')
-        .insert([fallbackPayload])
+        .insert([payload])
         .select();
 
-      if (insertedFallback && insertedFallback.length > 0) {
-        candidateData = insertedFallback[0];
+      if (insertedFallbackQ && insertedFallbackQ.length > 0) {
+        candidateData = insertedFallbackQ[0];
       } else {
-        const { data: retryCheck } = await supabase
-          .from('candidates')
-          .select('*')
-          .eq('email', email)
-          .limit(1);
+        // Fallback inserting core fields
+        const fallbackPayload = {
+          name,
+          email,
+          phone: phone || null,
+          role: screening.normalizedRole,
+          residing_city: residingCity || 'Kochi',
+          status: 'invited',
+        };
 
-        if (retryCheck && retryCheck.length > 0) {
-          candidateData = retryCheck[0];
-          isExisting = true;
+        const { data: insertedFallback } = await supabase
+          .from('candidates')
+          .insert([fallbackPayload])
+          .select();
+
+        if (insertedFallback && insertedFallback.length > 0) {
+          candidateData = insertedFallback[0];
+        } else {
+          const { data: retryCheck } = await supabase
+            .from('candidates')
+            .select('*')
+            .eq('email', email)
+            .limit(1);
+
+          if (retryCheck && retryCheck.length > 0) {
+            candidateData = retryCheck[0];
+            isExisting = true;
+          }
         }
       }
     }
