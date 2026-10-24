@@ -2528,8 +2528,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                                 onClick={() => handleUpdateMetaFeedback(c, 'QUALIFIED')}
                                 className={`inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
                                   c.meta_feedback_status === 'QUALIFIED'
-                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                    : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+                                    ? 'bg-stone-700 text-white shadow-xs'
+                                    : 'text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-300'
                                 }`}
                               >
                                 {updatingFeedbackId === `${c.id}_QUALIFIED` ? (
@@ -2545,8 +2545,8 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                                 onClick={() => handleUpdateMetaFeedback(c, 'CONVERTED')}
                                 className={`inline-flex items-center rounded px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
                                   c.meta_feedback_status === 'CONVERTED'
-                                    ? 'bg-blue-600 text-white shadow-xs'
-                                    : 'text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                                    ? 'bg-stone-700 text-white shadow-xs'
+                                    : 'text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-300'
                                 }`}
                               >
                                 {updatingFeedbackId === `${c.id}_CONVERTED` ? (
