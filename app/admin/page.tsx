@@ -27,13 +27,11 @@ import {
   MessageSquare,
   Phone,
   PhoneCall,
-  Play,
   RefreshCw,
   Search,
   Send,
   SlidersHorizontal,
   Sparkles,
-  Square,
   Upload,
   X,
   XCircle,
@@ -1008,27 +1006,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // 5. Universal Stop / Resume Ingestion Button
-  const handleToggleGlobalPause = async () => {
-    const nextPaused = !syncSettings.isPaused;
-    const updated = {
-      ...syncSettings,
-      isPaused: nextPaused,
-    };
-    setSyncSettings(updated);
-
-    try {
-      await fetch('/api/sync-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          isPaused: nextPaused,
-        }),
-      });
-    } catch (err) {
-      console.error('Error updating global pause:', err);
-    }
-  };
 
   // 6. Universal Background Polling Hook (respects Global Pause and independent per-role sheets)
   useEffect(() => {
@@ -2103,76 +2080,6 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           {/* TAB 1: GOOGLE SHEET SYNC */}
           {leadSourceTab === 'sheet' && (
             <div className="space-y-3">
-              {/* Universal Cloud Sync & Global Stop / Resume Bar */}
-              <div
-                className={`rounded-xl border p-3.5 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
-                  syncSettings.isPaused
-                    ? 'bg-rose-500/10 border-rose-500/30'
-                    : 'bg-emerald-500/10 border-emerald-500/30'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-3 w-3 rounded-full shrink-0 ${
-                      syncSettings.isPaused
-                        ? 'bg-rose-500 animate-pulse'
-                        : 'bg-emerald-500 animate-pulse'
-                    }`}
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-foreground">
-                        {syncSettings.isPaused
-                          ? 'Lead Ingestion Stopped / Paused'
-                          : 'Universal Cloud Ingestion Active'}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-background/80 text-foreground border border-border">
-                        Multi-Device Synced
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {syncSettings.isPaused
-                        ? 'Background polling is stopped across all devices. Click Resume to re-enable lead ingestion.'
-                        : 'Sheet URLs and sync settings are live across all logged-in devices without collision.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={autoInviteToggle}
-                      onChange={(e) => setAutoInviteToggle(e.target.checked)}
-                      className="rounded text-[#a53861] focus:ring-[#a53861]"
-                    />
-                    <span>Auto-send invites</span>
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={handleToggleGlobalPause}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer ${
-                      syncSettings.isPaused
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        : 'bg-rose-600 hover:bg-rose-700 text-white'
-                    }`}
-                  >
-                    {syncSettings.isPaused ? (
-                      <>
-                        <Play className="h-3.5 w-3.5 fill-current" />
-                        <span>Resume Ingestion</span>
-                      </>
-                    ) : (
-                      <>
-                        <Square className="h-3.5 w-3.5 fill-current" />
-                        <span>Stop Ingestion</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
               {/* Notification Banner */}
               {autoSyncNotification && (
                 <div className="rounded-lg border border-[#a53861]/30 bg-[#a53861]/5 px-3 py-2 flex items-center justify-between text-xs text-foreground font-medium">
@@ -2257,16 +2164,27 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     )}
                   </div>
 
-                  <label className="inline-flex items-center gap-1.5 text-xs text-foreground font-medium cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={!!syncSettings.sheets[activeRoleSheet]?.autoSync}
-                      onChange={() => handleToggleAutoSync(activeRoleSheet)}
-                      disabled={syncSettings.isPaused}
-                      className="rounded text-[#a53861] focus:ring-[#a53861]"
-                    />
-                    <span>Auto-sync new {activeRoleSheet} leads</span>
-                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="inline-flex items-center gap-1.5 text-xs text-foreground font-medium cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!syncSettings.sheets[activeRoleSheet]?.autoSync}
+                        onChange={() => handleToggleAutoSync(activeRoleSheet)}
+                        className="rounded text-[#a53861] focus:ring-[#a53861]"
+                      />
+                      <span>Auto-sync new {activeRoleSheet} leads</span>
+                    </label>
+
+                    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoInviteToggle}
+                        onChange={(e) => setAutoInviteToggle(e.target.checked)}
+                        className="rounded text-[#a53861] focus:ring-[#a53861]"
+                      />
+                      <span>Send upload invites automatically</span>
+                    </label>
+                  </div>
                 </div>
 
                 {/* Sheet URL & Action Bar */}
