@@ -647,6 +647,167 @@ Return ONLY a valid JSON object matching this schema:
 `;
 }
 
+/**
+ * Generate evaluation prompt for PASTRY CHEF / COMMIS I & II role (31 criteria)
+ */
+function generatePastryChefPrompt(questionnaire: Record<string, any>, resumeText: string): string {
+  return `
+You are an Executive Pastry Chef & Senior Technical Culinary Auditor for "Boba Live", a premium cafe and dessert brand.
+You are evaluating a candidate's CV for the position: "Pastry Chef / Commis I & II" in a professional pastry kitchen.
+
+==================================================
+ROLE CONTEXT & CORE REQUIREMENTS
+==================================================
+Position: Pastry Chef / Commis I & II
+The AI must evaluate the candidate's CV against the specified criteria to determine their suitability for a Commis I or Commis II position in a professional pastry kitchen.
+The evaluation should prioritize practical pastry preparation experience, product-specific expertise, commercial kitchen exposure, and consistency in production.
+
+Commis Levels:
+- Commis I: Experienced pastry professional capable of independent production, recipe execution, high-precision finishing, and supervising basic pastry tasks.
+- Commis II: Developing pastry professional capable of executing standardized recipes, doughs, creams, and baked goods under senior supervision.
+
+Candidate Claims / Questionnaire Context:
+- Pastry Experience Claimed: ${questionnaire.pastry_kitchen_experience ? 'Yes' : 'Not Stated'}
+- Claimed Duration: ${questionnaire.pastry_experience_duration || questionnaire.experience_duration || 'Not Stated'}
+- Cheesecake Experience Claimed: ${questionnaire.cheesecake_experience ? 'Yes' : 'Not Stated'}
+- Commercial Kitchen Experience: ${questionnaire.commercial_kitchen_experience ? 'Yes' : 'Not Stated'}
+- Home State / Location: ${questionnaire.home_state || 'Kerala'}
+
+==================================================
+APPLICANT CV TEXT CONTENT
+==================================================
+"""
+${resumeText}
+"""
+
+==================================================
+PASTRY CHEF / COMMIS I & II — AI EVALUATION CRITERIA
+==================================================
+Evaluate the candidate across all criteria below:
+
+--- Category A: Professional Experience & Eligibility ---
+1. Pastry Kitchen Experience: Has the candidate previously worked in a professional pastry kitchen, bakery, dessert kitchen, hotel pastry department, café, or commercial baking establishment?
+2. Relevant Experience Duration: Does the candidate have at least 1 year of professional experience in pastry preparation, baking, cake production, or dessert making?
+3. Dedicated Pastry Experience: Was the candidate specifically employed in a pastry-related position rather than working exclusively as a general kitchen assistant or general cook?
+4. Relevant Job Designations: Has the candidate previously worked as a Pastry Chef, Commis I, Commis II, Pastry Cook, Bakery Assistant, Demi Chef de Partie (Pastry), or in an equivalent position?
+5. Commercial Production Experience: Does the candidate have experience preparing pastries, cakes, or desserts for commercial sale in a restaurant, hotel, bakery, café, or other food-service establishment?
+
+--- Category B: Pastry, Cake & Dessert Expertise ---
+6. Pastry Preparation: Does the candidate demonstrate hands-on experience preparing different types of pastries, including tarts, puffs, choux pastry, shortcrust pastry, puff pastry, or similar products?
+7. Cake Preparation: Does the candidate have practical experience preparing different varieties of cakes, including sponge cakes, chocolate cakes, layered cakes, mousse cakes, or specialty cakes?
+8. Cheesecake Preparation: Does the CV specifically indicate experience preparing cheesecakes, including baked cheesecakes, no-bake cheesecakes, or different cheesecake varieties? (CRITICAL REQUIREMENT)
+9. Baked Dessert Experience: Does the candidate have experience preparing baked desserts such as brownies, cookies, muffins, cupcakes, tarts, pies, or similar products?
+10. Dessert Variety: Does the candidate demonstrate experience preparing a variety of desserts beyond basic cake and pastry products?
+11. Baking Techniques: Does the candidate demonstrate knowledge or practical experience with baking methods, mixing techniques, whipping, folding, proofing, tempering, layering, or other relevant pastry techniques?
+12. Creams, Fillings & Toppings: Does the candidate have experience preparing pastry creams, ganache, buttercream, mousses, custards, dessert fillings, glazes, or other essential pastry components?
+
+--- Category C: Product Quality & Presentation ---
+13. Recipe Execution: Does the candidate have experience following standardized pastry recipes, ingredient measurements, preparation procedures, and production specifications?
+14. Consistency in Production: Does the candidate's previous experience indicate responsibility for maintaining consistent taste, texture, quality, and appearance across multiple batches of products?
+15. Finishing & Presentation: Does the candidate demonstrate experience with cake finishing, frosting, glazing, garnishing, decoration, layering, or professional dessert presentation?
+16. Product Quality Control: Does the CV indicate experience checking finished products for baking quality, texture, appearance, freshness, or other quality standards?
+
+--- Category D: Professional Kitchen Operations ---
+17. Ingredient Preparation: Does the candidate have experience measuring, weighing, preparing, organizing, and handling pastry ingredients before production?
+18. Ingredient Storage: Does the candidate have experience with proper storage of pastry ingredients, prepared mixtures, creams, fillings, and finished desserts?
+19. Equipment Familiarity: Does the candidate demonstrate experience operating professional pastry and bakery equipment such as commercial ovens, mixers, planetary mixers, refrigerators, freezers, or other baking equipment?
+20. Production Planning: Does the candidate have experience preparing products according to production schedules, daily requirements, customer orders, or commercial kitchen demand?
+21. Food Hygiene & Safety: Does the candidate demonstrate practical experience following kitchen hygiene, sanitation, food handling, food safety, and cross-contamination prevention procedures?
+22. Kitchen Organization: Does the candidate have experience maintaining organized workstations, cleaning kitchen equipment, managing ingredients, and following professional kitchen standards?
+
+--- Category E: Professional Experience & Work Suitability ---
+23. Teamwork & Kitchen Coordination: Does the candidate's employment history indicate experience working within a professional kitchen team, coordinating with other chefs, assistants, or kitchen staff?
+24. Employment Stability: Does the candidate demonstrate reasonable employment continuity, particularly in previous pastry, bakery, or kitchen positions? Identify repeated short-term employment patterns without automatically penalizing legitimate career transitions.
+25. Career Progression & Responsibility: Does the candidate demonstrate professional development in pastry preparation, such as progression from bakery assistant to pastry cook, Commis II, Commis I, or other positions involving increasing technical responsibilities?
+
+--- Category F: Additional Verification & Risk Flags ---
+26. Insufficient Relevant Experience: Does the CV indicate less than 1 year of relevant professional pastry/baking experience?
+27. No Dedicated Pastry Background: Is the candidate's experience primarily in general cooking or kitchen assistance, with little evidence of pastry specialization?
+28. Missing Cheesecake Experience: Is there no identifiable evidence of cheesecake preparation?
+29. Limited Cake & Dessert Experience: Does the candidate demonstrate experience with only basic bakery products without evidence of broader pastry or dessert preparation?
+30. Training vs. Professional Experience: Is the candidate's pastry knowledge supported only by academic training or personal projects, without professional kitchen experience?
+31. Product Expertise Verification: Are the candidate's claims of pastry, cake, and dessert expertise supported by actual employment responsibilities?
+
+==================================================
+IMPORTANT AI EVALUATION INSTRUCTIONS
+==================================================
+1. Prioritize practical, hands-on professional pastry experience over generic skill declarations.
+2. Search the entire CV, including employment history, job descriptions, skills, qualifications, certifications, and project descriptions.
+3. Do not rely exclusively on keywords. Recognize equivalent pastry terminology and related job designations.
+4. Give greater importance to candidates with demonstrated experience in cheesecake, cakes, pastries, and baked desserts.
+5. Distinguish between candidates who independently prepared products and those who only assisted with basic kitchen tasks.
+6. Experience in hotels, bakeries, restaurants, cafés, and commercial pastry kitchens should be considered relevant.
+7. Personal baking, hobbies, and home-based baking should not be treated as equivalent to professional commercial kitchen experience.
+8. If a specific skill or product experience is not mentioned, mark it as "Not Verified" rather than assuming the candidate lacks that ability.
+9. Provide supporting evidence from the CV for every significant score awarded.
+10. Do not invent product expertise, qualifications, responsibilities, or employment durations.
+11. The final assessment must identify the candidate's professional pastry experience, strongest product specializations, technical capabilities, missing requirements, and overall suitability for Commis I or Commis II.
+
+==================================================
+SCORING BREAKDOWN (100 POINTS TOTAL)
+==================================================
+1. Experience Points (Category A - Professional Experience & Eligibility) [Max: 35 Points]:
+   - 2+ years dedicated commercial pastry/bakery experience (30-35 pts)
+   - 1-2 years relevant pastry/bakery experience (22-29 pts)
+   - Less than 1 year or general cooking without dedicated pastry (10-21 pts)
+   - Only home/hobby baking or no relevant experience (0-9 pts)
+
+2. Skills Points (Category B - Pastry, Cakes, Cheesecakes & Fillings) [Max: 35 Points]:
+   - Strong hands-on proof in cheesecake (baked/cold), diverse cakes, pastries (choux, tarts, puff), creams/ganache (30-35 pts)
+   - Good core cake and baked dessert skills, but lacking cheesecake or specialty pastry (20-29 pts)
+   - Basic bakery products only or academic knowledge without commercial production (10-19 pts)
+   - Minimal or unverified pastry skills (0-9 pts)
+
+3. Communication & Quality Points (Category C - Recipe Execution & Finishing) [Max: 15 Points]:
+   - Demonstrated recipe compliance, batch consistency, high-level cake finishing, frosting, and presentation (13-15 pts)
+   - Competent basic finishing and standardized recipe adherence (8-12 pts)
+   - Unverified finishing or consistency claims (0-7 pts)
+
+4. Stability & Kitchen Operations (Categories D & E - Ops, Hygiene & Stability) [Max: 15 Points]:
+   - Proven familiarity with commercial ovens/mixers, ingredient prep/storage, hygiene standards, stable tenures (13-15 pts)
+   - Moderate operations/hygiene experience with minor job hops (8-12 pts)
+   - High turnover, poor kitchen operations evidence, or risk flags present (0-7 pts)
+
+Return ONLY a valid JSON object matching this schema:
+{
+  "total_score": <number 0-100>,
+  "criteria_breakdown": {
+    "experience_points": <number 0-35>,
+    "skills_points": <number 0-35>,
+    "communication_points": <number 0-15>,
+    "stability_education_points": <number 0-15>
+  },
+  "mandatory_eligibility": {
+    "minimum_1_year_pastry_exp_verified": <boolean>,
+    "dedicated_pastry_role_verified": <boolean>,
+    "cheesecake_experience_verified": <boolean>,
+    "cake_and_pastry_expertise_verified": <boolean>,
+    "commercial_kitchen_verified": <boolean>,
+    "professional_vs_home_baking_status": "Professional Kitchen" | "Academic/Personal Only" | "Mixed",
+    "commis_suitability": "Commis I Suitable" | "Commis II Suitable" | "Entry Level / Assistant" | "Not Suitable",
+    "overall_eligible": <boolean>,
+    "risk_flags": ["<risk flag 1>", "<risk flag 2>"],
+    "notes": "<concise summary of pastry qualifications and commis suitability>"
+  },
+  "summary": "<2-3 sentence executive recruitment summary identifying pastry background, specializations, and Commis I/II suitability>",
+  "meta_verification_status": "Verified" | "Discrepancy Noted" | "Unverified",
+  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>"],
+  "gaps": ["<gap 1>", "<gap 2>"],
+  "recommendation": "Strongly Recommended" | "Recommended" | "Not Recommended",
+  "evaluated_questions": [
+    {
+      "id": 1,
+      "category": "Professional Experience & Eligibility",
+      "question": "Pastry Kitchen Experience: Has the candidate previously worked in a professional pastry kitchen, bakery, dessert kitchen, hotel pastry department, café, or commercial baking establishment?",
+      "status": "Direct Evidence" | "Indirect Evidence" | "Not Verified" | "Gap / Risk",
+      "evidence": "<exact quote or specific CV evidence>"
+    }
+    // ... all 31 questions sequentially from 1 to 31
+  ]
+}
+`;
+}
+
 // Construct dynamic system prompt based on role and meta lead data
 function generateEvaluationPrompt(role: string, questionnaire: Record<string, any>, resumeText: string): string {
   const normalized = (role || '').toLowerCase();
@@ -670,6 +831,16 @@ function generateEvaluationPrompt(role: string, questionnaire: Record<string, an
     normalized.includes('supervisor')
   ) {
     return generateGMPrompt(questionnaire, resumeText);
+  }
+  if (
+    normalized.includes('pastry') ||
+    normalized.includes('bakery') ||
+    normalized.includes('baker') ||
+    normalized.includes('commis') ||
+    normalized.includes('dessert') ||
+    normalized.includes('cake')
+  ) {
+    return generatePastryChefPrompt(questionnaire, resumeText);
   }
   if (normalized.includes('barista') && !normalized.includes('cafe staff')) {
     return generateBaristaPrompt(questionnaire, resumeText);
@@ -729,6 +900,17 @@ export async function POST(req: Request) {
       qKeys.includes('responsibilities')
     ) {
       effectiveRole = effectiveRole.toLowerCase().includes('manager') ? effectiveRole : 'General Manager';
+    } else if (
+      effectiveRole.toLowerCase().includes('pastry') ||
+      effectiveRole.toLowerCase().includes('bakery') ||
+      effectiveRole.toLowerCase().includes('baker') ||
+      effectiveRole.toLowerCase().includes('commis') ||
+      effectiveRole.toLowerCase().includes('dessert') ||
+      qKeys.includes('pastry') ||
+      qKeys.includes('bakery') ||
+      qKeys.includes('cheesecake')
+    ) {
+      effectiveRole = 'Pastry Chef';
     } else if (
       effectiveRole.toLowerCase() === 'barista' ||
       (effectiveRole.toLowerCase().includes('barista') && !effectiveRole.toLowerCase().includes('cafe staff')) ||

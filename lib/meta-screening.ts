@@ -68,9 +68,32 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
       fieldKeys.includes('managed_multiple_outlets') ||
       fieldKeys.includes('at_least_5_years'));
 
+  // Check for Pastry Chef / Commis I & II
+  const isPastryChef =
+    !isHR &&
+    !isGM &&
+    (explicitRole.includes('pastry') ||
+      explicitRole.includes('bakery') ||
+      explicitRole.includes('baker') ||
+      explicitRole.includes('commis') ||
+      explicitRole.includes('dessert') ||
+      explicitRole.includes('cake') ||
+      formHints.includes('pastry') ||
+      formHints.includes('bakery') ||
+      formHints.includes('baker') ||
+      formHints.includes('commis') ||
+      formHints.includes('dessert') ||
+      formHints.includes('cake') ||
+      fieldKeys.includes('pastry') ||
+      fieldKeys.includes('bakery') ||
+      fieldKeys.includes('baking') ||
+      fieldKeys.includes('commis') ||
+      fieldKeys.includes('cheesecake'));
+
   const isBarista =
     !isHR &&
     !isGM &&
+    !isPastryChef &&
     (explicitRole.includes('barista') ||
       formHints.includes('barista') ||
       fieldKeys.includes('barista'));
@@ -204,6 +227,65 @@ export function evaluateMetaScreening(role: string, fields: Record<string, any> 
         responsibilities: getFieldValue(fields, 'responsibilities'),
         residing_in_kochi: residingKochi,
         home_state: getFieldValue(fields, 'home_state', 'state', 'please_select') || 'Kerala',
+      },
+    };
+  } else if (isPastryChef) {
+    const valExpYears = getFieldValue(
+      fields,
+      'how_many_years_of_pastry_experience',
+      'years_of_pastry_experience',
+      'pastry_experience',
+      'years_of_experience',
+      'experience_duration',
+      'how_many_years'
+    ) || '1+ years';
+
+    const valPastry = getFieldValue(
+      fields,
+      'worked_in_pastry_kitchen',
+      'pastry_kitchen_experience',
+      'bakery_experience',
+      'pastry_experience'
+    );
+    const hasPastry =
+      valPastry.toLowerCase() === 'yes' ||
+      valPastry.toLowerCase() === 'y' ||
+      valPastry.toLowerCase() === 'true';
+
+    const valCheesecake = getFieldValue(
+      fields,
+      'cheesecake_experience',
+      'prepared_cheesecakes',
+      'experience_with_cheesecake',
+      'cheesecake'
+    );
+    const hasCheesecake =
+      valCheesecake.toLowerCase() === 'yes' ||
+      valCheesecake.toLowerCase() === 'y' ||
+      valCheesecake.toLowerCase() === 'true';
+
+    const valCommercial = getFieldValue(
+      fields,
+      'commercial_kitchen_experience',
+      'commercial_production',
+      'worked_in_hotel_or_bakery',
+      'commercial_baking'
+    );
+    const hasCommercial =
+      valCommercial.toLowerCase() === 'yes' ||
+      valCommercial.toLowerCase() === 'y' ||
+      valCommercial.toLowerCase() === 'true';
+
+    return {
+      passed: true,
+      normalizedRole: 'Pastry Chef',
+      questionnaire: {
+        pastry_experience_duration: valExpYears,
+        pastry_kitchen_experience: hasPastry,
+        cheesecake_experience: hasCheesecake,
+        commercial_kitchen_experience: hasCommercial,
+        home_state: getFieldValue(fields, 'home_state', 'state', 'please_select') || 'Kerala',
+        residing_city: getFieldValue(fields, 'residing_in_kochi', 'city', 'location') || 'Kochi',
       },
     };
   } else {

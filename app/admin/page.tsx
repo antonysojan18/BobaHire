@@ -72,6 +72,12 @@ interface Candidate {
       multi_branch_or_operational_verified?: boolean | null;
       malayalam_proficiency_verified?: boolean | null;
       two_wheeler_mobility_verified?: boolean | null;
+      minimum_1_year_pastry_exp_verified?: boolean | null;
+      dedicated_pastry_role_verified?: boolean | null;
+      cheesecake_experience_verified?: boolean | null;
+      cake_and_pastry_expertise_verified?: boolean | null;
+      commercial_kitchen_verified?: boolean | null;
+      commis_suitability?: string | null;
       overall_eligible?: boolean | null;
       notes?: string | null;
     };
@@ -337,6 +343,19 @@ export default function AdminDashboard() {
         let targetRole = c.role;
 
         if (
+          targetRole?.toLowerCase().includes('pastry') ||
+          targetRole?.toLowerCase().includes('bakery') ||
+          targetRole?.toLowerCase().includes('baker') ||
+          targetRole?.toLowerCase().includes('commis') ||
+          qKeys.includes('pastry') ||
+          qKeys.includes('bakery') ||
+          qKeys.includes('cheesecake')
+        ) {
+          if (targetRole !== 'Pastry Chef') {
+            targetRole = 'Pastry Chef';
+            supabase.from('candidates').update({ role: 'Pastry Chef' }).eq('id', c.id).then();
+          }
+        } else if (
           qKeys.includes('hr_experience') ||
           qKeys.includes('recruitment_experience') ||
           qKeys.includes('statutory_compliance') ||
@@ -2039,6 +2058,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     <option value="General Manager">Manager</option>
                     <option value="Cafe Staff">Cafe Staff</option>
                     <option value="Barista">Barista</option>
+                    <option value="Pastry Chef">Pastry Chef</option>
                   </select>
                 </div>
 
@@ -2186,6 +2206,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     <option value="General Manager">Manager</option>
                     <option value="Cafe Staff">Cafe Staff</option>
                     <option value="Barista">Barista</option>
+                    <option value="Pastry Chef">Pastry Chef</option>
                   </select>
                 </div>
 
@@ -3402,6 +3423,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   {(() => {
                     const isHR = activeModal.candidate.role.toLowerCase().includes('hr') || activeModal.candidate.role.toLowerCase().includes('human resource');
                     const isGM = activeModal.candidate.role.toLowerCase().includes('general manager') || activeModal.candidate.role.toLowerCase().includes('gm') || activeModal.candidate.role.toLowerCase().includes('manager');
+                    const isPastry = activeModal.candidate.role.toLowerCase().includes('pastry') || activeModal.candidate.role.toLowerCase().includes('bakery') || activeModal.candidate.role.toLowerCase().includes('commis');
                     const isBarista = activeModal.candidate.role.toLowerCase().includes('barista');
 
                     const items = isHR
@@ -3418,19 +3440,26 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                           { label: 'QSR / Cafe Relevance', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 20 },
                           { label: 'Consistency & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 20 },
                         ]
-                        : isBarista
+                        : isPastry
                           ? [
-                            { label: 'Barista & F&B Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
-                            { label: 'Coffee & Boba Craft', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
-                            { label: 'Customer Service & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
-                            { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                            { label: 'Pastry Exp & Eligibility', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 35 },
+                            { label: 'Pastry, Cake & Dessert', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 35 },
+                            { label: 'Quality & Presentation', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                            { label: 'Kitchen Ops & Stability', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
                           ]
-                          : [
-                            { label: 'QSR & Cafe Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
-                            { label: 'Operations & Service Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
-                            { label: 'Customer Handling & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
-                            { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
-                          ];
+                          : isBarista
+                            ? [
+                              { label: 'Barista & F&B Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
+                              { label: 'Coffee & Boba Craft', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                              { label: 'Customer Service & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                              { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                            ]
+                            : [
+                              { label: 'QSR & Cafe Exp', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.experience_points ?? 0, max: 40 },
+                              { label: 'Operations & Service Skills', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.skills_points ?? 0, max: 30 },
+                              { label: 'Customer Handling & Comms', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.communication_points ?? 0, max: 15 },
+                              { label: 'Stability & Verification', score: activeModal.candidate.ai_evaluation.criteria_breakdown?.stability_education_points ?? 0, max: 15 },
+                            ];
 
                     return (
                       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
@@ -3567,6 +3596,56 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                             <span className="text-muted-foreground font-medium">Multi-Outlet:</span>
                             <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_outlet_verified ? 'text-emerald-700' : 'text-amber-600'}`}>
                               {activeModal.candidate.ai_evaluation.mandatory_eligibility.multi_outlet_verified ? '✓ Verified' : 'Unverified'}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Pastry Chef & Commis Eligibility Fields */}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_1_year_pastry_exp_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Min 1 Yr Pastry:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_1_year_pastry_exp_verified ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.minimum_1_year_pastry_exp_verified ? '✓ Verified' : '✕ Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.dedicated_pastry_role_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Dedicated Role:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.dedicated_pastry_role_verified ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.dedicated_pastry_role_verified ? '✓ Verified' : '✕ Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.cheesecake_experience_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Cheesecake Prep:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.cheesecake_experience_verified ? 'text-emerald-700' : 'text-amber-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.cheesecake_experience_verified ? '✓ Verified' : 'Missing / Gap'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.cake_and_pastry_expertise_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Cakes & Pastries:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.cake_and_pastry_expertise_verified ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.cake_and_pastry_expertise_verified ? '✓ Verified' : 'Not Verified'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.commercial_kitchen_verified !== undefined && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Commercial Kitchen:</span>
+                            <span className={`font-bold ${activeModal.candidate.ai_evaluation.mandatory_eligibility.commercial_kitchen_verified ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.commercial_kitchen_verified ? '✓ Verified' : 'Home / Academic'}
+                            </span>
+                          </div>
+                        )}
+                        {activeModal.candidate.ai_evaluation.mandatory_eligibility.commis_suitability && (
+                          <div className="bg-card p-2 rounded-lg border border-border/80 flex items-center justify-between">
+                            <span className="text-muted-foreground font-medium">Suitability:</span>
+                            <span className="font-bold text-[#a53861]">
+                              {activeModal.candidate.ai_evaluation.mandatory_eligibility.commis_suitability}
                             </span>
                           </div>
                         )}
