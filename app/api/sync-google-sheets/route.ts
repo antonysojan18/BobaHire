@@ -6,6 +6,10 @@ import {
   normalizeMetaRow,
   processCandidateLead,
 } from '@/lib/lead-processor';
+import {
+  getUniversalSyncSettings,
+  updateUniversalSyncSettings,
+} from '@/lib/sync-config';
 
 /**
  * Fetch and parse CSV from a Google Sheets public or view-shared URL
@@ -122,12 +126,47 @@ async function fetchGoogleSheetRows(sheetUrl: string): Promise<Record<string, an
 }
 
 export async function POST(req: Request) {
+  let activeRoleLock: string | null = null;
   try {
     const body = await req.json().catch(() => ({}));
     const action = body.action || 'sync'; // 'preview' | 'sync'
     const sendInvites = body.sendInvites !== false; // default true
     const sheetUrl = body.sheetUrl ? String(body.sheetUrl).trim() : '';
     const roleOverride = body.role ? String(body.role).trim() : '';
+
+    // Check Universal Settings for Global Pause or Concurrency Lock
+    const settings = await getUniversalSyncSettings();
+    if (action === 'sync' && settings.isPaused) {
+      return NextResponse.json({
+        success: false,
+        paused: true,
+        message: 'Lead ingestion is currently paused across all devices. Click Resume to re-enable.',
+      });
+    }
+
+    const now = Date.now();
+    if (
+      action === 'sync' &&
+      roleOverride &&
+      settings.activeSyncLock &&
+      settings.activeSyncLock.role === roleOverride &&
+      settings.activeSyncLock.lockedUntil > now
+    ) {
+      return NextResponse.json({
+        success: true,
+        locked: true,
+        newCount: 0,
+        existingCount: 0,
+        message: `Sync for "${roleOverride}" is already actively running on another device.`,
+      });
+    }
+
+    if (action === 'sync' && roleOverride) {
+      activeRoleLock = roleOverride;
+      await updateUniversalSyncSettings({
+        activeSyncLock: { role: roleOverride, lockedUntil: now + 35000 },
+      });
+    }
 
     let rawRows: Record<string, any>[] = [];
 
@@ -258,6 +297,26 @@ export async function POST(req: Request) {
       }
     }
 
+    if (action === 'sync' && roleOverride) {
+      try {
+        await updateUniversalSyncSettings({
+          activeSyncLock: null,
+          lastGlobalSyncTime: new Date().toISOString(),
+          sheets: {
+            ...settings.sheets,
+            [roleOverride]: {
+              sheetUrl: sheetUrl || settings.sheets[roleOverride]?.sheetUrl || '',
+              autoSync: settings.sheets[roleOverride]?.autoSync ?? false,
+              lastSyncTime: new Date().toISOString(),
+              lastSyncCount: newCount,
+            },
+          },
+        });
+      } catch (saveErr) {
+        console.warn('Could not update universal sync settings:', saveErr);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       action: 'sync',
@@ -270,6 +329,11 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('Google Sheets Sync API Error:', err);
+    if (activeRoleLock) {
+      try {
+        await updateUniversalSyncSettings({ activeSyncLock: null });
+      } catch (_) {}
+    }
     return NextResponse.json(
       { error: err.message || 'An error occurred while syncing Google Sheets leads' },
       { status: 500 }

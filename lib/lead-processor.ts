@@ -329,6 +329,24 @@ export async function processCandidateLead(
 
   // 2. If not found in DB, insert full payload
   if (!candidateData) {
+    // Immediate double check to prevent concurrency race conditions from simultaneous syncs
+    try {
+      const { data: raceRecords } = await supabase
+        .from('candidates')
+        .select('*')
+        .eq('email', email)
+        .limit(1);
+
+      if (raceRecords && raceRecords.length > 0) {
+        candidateData = raceRecords[0];
+        isExisting = true;
+      }
+    } catch (raceErr) {
+      console.warn('Race condition check error:', raceErr);
+    }
+  }
+
+  if (!candidateData) {
     const { data: insertedFull, error: errFull } = await supabase
       .from('candidates')
       .insert([payload])

@@ -4,6 +4,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import {
+  UniversalSyncSettings,
+  DEFAULT_SYNC_SETTINGS,
+} from '@/lib/sync-config';
+import {
   ArrowUpDown,
   Calendar,
   CalendarClock,
@@ -23,11 +27,13 @@ import {
   MessageSquare,
   Phone,
   PhoneCall,
+  Play,
   RefreshCw,
   Search,
   Send,
   SlidersHorizontal,
   Sparkles,
+  Square,
   Upload,
   X,
   XCircle,
@@ -332,6 +338,7 @@ export default function AdminDashboard() {
     const { data, error } = await supabase
       .from('candidates')
       .select('*')
+      .neq('status', 'system')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -848,12 +855,24 @@ export default function AdminDashboard() {
     setInterviewCandidate(null);
   };
 
-  // Google Sheets & Meta Ads Lead Sync System
+  // Universal Cloud Google Sheets & Ingestion System (Multi-Device Synchronized)
   const [leadSourceTab, setLeadSourceTab] = useState<'sheet' | 'file'>('sheet');
+  const [syncSettings, setSyncSettings] = useState<UniversalSyncSettings>(DEFAULT_SYNC_SETTINGS);
+  const [activeRoleSheet, setActiveRoleSheet] = useState<string>('HR Executive');
   const [uploadRoleOverride, setUploadRoleOverride] = useState<string>('HR Executive');
-  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>(
-    'https://docs.google.com/spreadsheets/d/16QjF1zjUJ0xDv_jF6ySA8SD68DEt9yHeS9k6QcpoNOc/edit?usp=sharing'
+
+  // Local input for sheet URL to allow typing smoothly
+  const [currentSheetUrlInput, setCurrentSheetUrlInput] = useState<string>(
+    DEFAULT_SYNC_SETTINGS.sheets['HR Executive']?.sheetUrl || ''
   );
+
+  // Sync input text when active role or cloud settings change
+  useEffect(() => {
+    const url = syncSettings.sheets[activeRoleSheet]?.sheetUrl || '';
+    setCurrentSheetUrlInput(url);
+    setUploadRoleOverride(activeRoleSheet);
+  }, [activeRoleSheet, syncSettings]);
+
   const [googleSheetUpdateUrl, setGoogleSheetUpdateUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('bobahire_google_sheet_update_url') || '';
@@ -891,122 +910,205 @@ export default function AdminDashboard() {
     whatsappSent: number;
   } | null>(null);
 
-  // Automated Real-Time Background Auto-Sync State (3s default)
-  const [autoSyncActive, setAutoSyncActive] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('bobahire_auto_sync_active') === 'true';
-    }
-    return false;
-  });
-  const [autoSyncInterval, setAutoSyncInterval] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const savedInt = localStorage.getItem('bobahire_auto_sync_interval');
-      if (savedInt) return Number(savedInt) || 3;
-    }
-    return 3; // Default 3 seconds
-  });
   const [lastAutoSyncTime, setLastAutoSyncTime] = useState<Date | null>(null);
   const [autoSyncSessionCount, setAutoSyncSessionCount] = useState<number>(0);
   const [isSilentPolling, setIsSilentPolling] = useState<boolean>(false);
   const [autoSyncNotification, setAutoSyncNotification] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('bobahire_google_sheet_url');
-      if (saved) {
-        setGoogleSheetUrl(saved);
-      } else {
-        setGoogleSheetUrl('https://docs.google.com/spreadsheets/d/16QjF1zjUJ0xDv_jF6ySA8SD68DEt9yHeS9k6QcpoNOc/edit?usp=sharing');
+  // 1. Fetch Universal Cloud Sync Settings from backend
+  const fetchCloudSyncSettings = async () => {
+    try {
+      const res = await fetch('/api/sync-settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.settings) {
+          setSyncSettings((prev) => ({
+            ...prev,
+            ...data.settings,
+            sheets: {
+              ...prev.sheets,
+              ...(data.settings.sheets || {}),
+            },
+          }));
+        }
       }
-      const savedScriptUrl = localStorage.getItem('bobahire_google_sheet_update_url');
-      if (savedScriptUrl) {
-        setGoogleSheetUpdateUrl(savedScriptUrl);
-        setSheetUpdateUrlInput(savedScriptUrl);
-      }
+    } catch (err) {
+      console.warn('Could not fetch cloud sync settings:', err);
     }
+  };
+
+  // 2. Poll Cloud Sync Settings every 8 seconds so all devices stay identical
+  useEffect(() => {
+    fetchCloudSyncSettings();
+    const interval = setInterval(fetchCloudSyncSettings, 8000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Background Auto-Sync Polling Hook
+  // 3. Save Sheet URL for a role to Cloud
+  const handleSaveSheetUrl = async (role: string, newUrl: string) => {
+    const trimmed = newUrl.trim();
+    const currentCfg = syncSettings.sheets[role] || { autoSync: false, lastSyncTime: null, lastSyncCount: 0 };
+    const updatedSheets = {
+      ...syncSettings.sheets,
+      [role]: {
+        ...currentCfg,
+        sheetUrl: trimmed,
+      },
+    };
+    const updated = {
+      ...syncSettings,
+      sheets: updatedSheets,
+    };
+    setSyncSettings(updated);
+
+    try {
+      await fetch('/api/sync-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sheets: updatedSheets,
+        }),
+      });
+    } catch (err) {
+      console.error('Error saving universal sheet URL:', err);
+    }
+  };
+
+  // 4. Toggle Auto-Sync for specific role in Cloud
+  const handleToggleAutoSync = async (role: string) => {
+    const currentCfg = syncSettings.sheets[role];
+    if (!currentCfg?.sheetUrl?.trim()) {
+      alert(`Please enter a valid Google Sheet URL for ${role} first.`);
+      return;
+    }
+    const nextVal = !currentCfg.autoSync;
+    const updatedSheets = {
+      ...syncSettings.sheets,
+      [role]: {
+        ...currentCfg,
+        autoSync: nextVal,
+      },
+    };
+    const updated = {
+      ...syncSettings,
+      sheets: updatedSheets,
+    };
+    setSyncSettings(updated);
+
+    try {
+      await fetch('/api/sync-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sheets: updatedSheets,
+        }),
+      });
+    } catch (err) {
+      console.error('Error toggling auto sync:', err);
+    }
+  };
+
+  // 5. Universal Stop / Resume Ingestion Button
+  const handleToggleGlobalPause = async () => {
+    const nextPaused = !syncSettings.isPaused;
+    const updated = {
+      ...syncSettings,
+      isPaused: nextPaused,
+    };
+    setSyncSettings(updated);
+
+    try {
+      await fetch('/api/sync-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isPaused: nextPaused,
+        }),
+      });
+    } catch (err) {
+      console.error('Error updating global pause:', err);
+    }
+  };
+
+  // 6. Universal Background Polling Hook (respects Global Pause and independent per-role sheets)
   useEffect(() => {
-    if (!autoSyncActive || !googleSheetUrl.trim()) return;
+    if (syncSettings.isPaused) return;
+
+    // Check which roles have autoSync enabled and a valid URL
+    const activeRoles = Object.keys(syncSettings.sheets || {}).filter(
+      (role) => syncSettings.sheets[role]?.autoSync && syncSettings.sheets[role]?.sheetUrl?.trim()
+    );
+
+    if (activeRoles.length === 0) return;
 
     let isSubscribed = true;
 
     const runSilentSync = async () => {
-      if (sheetSyncing || sheetPreviewing) return;
+      if (sheetSyncing || sheetPreviewing || syncSettings.isPaused) return;
       setIsSilentPolling(true);
 
-      try {
-        const res = await fetch('/api/sync-google-sheets', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sheetUrl: googleSheetUrl.trim(),
-            action: 'sync',
-            sendInvites: autoInviteToggle,
-            role: uploadRoleOverride,
-          }),
-        });
+      for (const role of activeRoles) {
+        if (!isSubscribed || syncSettings.isPaused) break;
+        const roleConfig = syncSettings.sheets[role];
+        if (!roleConfig?.sheetUrl?.trim()) continue;
 
-        const data = await res.json();
-        if (isSubscribed && res.ok && data.success) {
-          setLastAutoSyncTime(new Date());
-          if (data.newCount > 0) {
-            setAutoSyncSessionCount((prev) => prev + data.newCount);
-            setAutoSyncNotification(
-              `Auto-sync: ${data.newCount} new lead(s) imported from Google Sheet.`
-            );
-            fetchCandidates();
-            setTimeout(() => {
-              if (isSubscribed) setAutoSyncNotification(null);
-            }, 6000);
+        try {
+          const res = await fetch('/api/sync-google-sheets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sheetUrl: roleConfig.sheetUrl.trim(),
+              action: 'sync',
+              sendInvites: autoInviteToggle,
+              role: role,
+            }),
+          });
+
+          const data = await res.json();
+          if (isSubscribed && res.ok && data.success && !data.locked && !data.paused) {
+            setLastAutoSyncTime(new Date());
+            if (data.newCount > 0) {
+              setAutoSyncSessionCount((prev) => prev + data.newCount);
+              setAutoSyncNotification(
+                `Auto-sync: ${data.newCount} new lead(s) imported for ${role}.`
+              );
+              fetchCandidates();
+              setTimeout(() => {
+                if (isSubscribed) setAutoSyncNotification(null);
+              }, 6000);
+            }
           }
+        } catch (silentErr) {
+          console.warn(`Background auto-sync polling warning for ${role}:`, silentErr);
         }
-      } catch (silentErr) {
-        console.warn('Background auto-sync polling warning:', silentErr);
-      } finally {
-        if (isSubscribed) setIsSilentPolling(false);
       }
+
+      if (isSubscribed) setIsSilentPolling(false);
     };
 
     // Immediate initial sync
     runSilentSync();
 
-    const timer = setInterval(runSilentSync, Math.max(2, autoSyncInterval) * 1000);
+    const intervalSec = Math.max(3, syncSettings.autoSyncInterval || 5);
+    const timer = setInterval(runSilentSync, intervalSec * 1000);
 
     return () => {
       isSubscribed = false;
       clearInterval(timer);
     };
-  }, [autoSyncActive, autoSyncInterval, googleSheetUrl, autoInviteToggle, uploadRoleOverride, sheetSyncing, sheetPreviewing]);
+  }, [syncSettings, autoInviteToggle, sheetSyncing, sheetPreviewing]);
 
-  const toggleAutoSync = () => {
-    if (!googleSheetUrl.trim()) {
-      alert('Please enter your Google Sheet URL before enabling Auto-Sync.');
-      return;
-    }
-    const nextState = !autoSyncActive;
-    setAutoSyncActive(nextState);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('bobahire_auto_sync_active', String(nextState));
-    }
-  };
-
-  const handleIntervalChange = (newSec: number) => {
-    setAutoSyncInterval(newSec);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('bobahire_auto_sync_interval', String(newSec));
-    }
-  };
-
+  // 7. Manual Sync / Preview Handler for Current Active Role
   const handleSyncGoogleSheet = async (isPreview: boolean = false) => {
-    if (!googleSheetUrl.trim()) {
-      alert('Please enter or paste your Google Sheet URL.');
+    const urlToUse = currentSheetUrlInput.trim();
+    if (!urlToUse) {
+      alert(`Please enter or paste the Google Sheet URL for ${activeRoleSheet}.`);
       return;
     }
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('bobahire_google_sheet_url', googleSheetUrl.trim());
+    // Auto-save sheet URL to cloud if edited
+    if (urlToUse !== syncSettings.sheets[activeRoleSheet]?.sheetUrl) {
+      await handleSaveSheetUrl(activeRoleSheet, urlToUse);
     }
 
     if (isPreview) {
@@ -1021,10 +1123,10 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sheetUrl: googleSheetUrl.trim(),
+          sheetUrl: urlToUse,
           action: isPreview ? 'preview' : 'sync',
           sendInvites: autoInviteToggle,
-          role: uploadRoleOverride,
+          role: activeRoleSheet,
         }),
       });
 
@@ -1033,12 +1135,23 @@ export default function AdminDashboard() {
         throw new Error(data.error || 'Failed to sync with Google Sheet');
       }
 
+      if (data.paused) {
+        alert(data.message || 'Lead ingestion is currently paused. Please click Resume to enable syncing.');
+        return;
+      }
+
+      if (data.locked) {
+        alert(data.message || `Sync for ${activeRoleSheet} is already in progress on another device.`);
+        return;
+      }
+
       if (isPreview) {
         setSheetPreviewData(data);
       } else {
         setSheetSyncResult(data);
         setSheetPreviewData(null);
         await fetchCandidates();
+        await fetchCloudSyncSettings();
       }
     } catch (err: any) {
       alert(`Google Sheet Sync Error: ${err.message}`);
@@ -1081,7 +1194,7 @@ export default function AdminDashboard() {
           email: candidate.email,
           metaLeadId: candidate.meta_lead_id || candidate.questionnaire_data?.id,
           status,
-          sheetUrl: googleSheetUrl,
+          sheetUrl: syncSettings.sheets[candidate.role]?.sheetUrl || currentSheetUrlInput || '',
           sheetUpdateUrl: googleSheetUpdateUrl,
         }),
       });
@@ -1990,35 +2103,74 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
           {/* TAB 1: GOOGLE SHEET SYNC */}
           {leadSourceTab === 'sheet' && (
             <div className="space-y-3">
-              {/* Auto-Sync status & toggle strip */}
-              <div className="flex flex-wrap items-center justify-between gap-2.5 text-xs">
+              {/* Universal Cloud Sync & Global Stop / Resume Bar */}
+              <div
+                className={`rounded-xl border p-3.5 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                  syncSettings.isPaused
+                    ? 'bg-rose-500/10 border-rose-500/30'
+                    : 'bg-emerald-500/10 border-emerald-500/30'
+                }`}
+              >
                 <div className="flex items-center gap-3">
-                  <label className="inline-flex items-center gap-1.5 text-xs text-foreground font-medium cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={autoSyncActive}
-                      onChange={toggleAutoSync}
-                      className="rounded text-[#a53861] focus:ring-[#a53861]"
-                    />
-                    <span>Auto-sync new leads</span>
-                  </label>
-
-                  {autoSyncActive && (
-                    <span className="text-[11px] text-muted-foreground">
-                      {isSilentPolling ? 'Checking...' : lastAutoSyncTime ? `Last checked ${lastAutoSyncTime.toLocaleTimeString()}` : ''}
-                    </span>
-                  )}
+                  <div
+                    className={`h-3 w-3 rounded-full shrink-0 ${
+                      syncSettings.isPaused
+                        ? 'bg-rose-500 animate-pulse'
+                        : 'bg-emerald-500 animate-pulse'
+                    }`}
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-foreground">
+                        {syncSettings.isPaused
+                          ? 'Lead Ingestion Stopped / Paused'
+                          : 'Universal Cloud Ingestion Active'}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider bg-background/80 text-foreground border border-border">
+                        Multi-Device Synced
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {syncSettings.isPaused
+                        ? 'Background polling is stopped across all devices. Click Resume to re-enable lead ingestion.'
+                        : 'Sheet URLs and sync settings are live across all logged-in devices without collision.'}
+                    </p>
+                  </div>
                 </div>
 
-                <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={autoInviteToggle}
-                    onChange={(e) => setAutoInviteToggle(e.target.checked)}
-                    className="rounded text-[#a53861] focus:ring-[#a53861]"
-                  />
-                  <span>Send upload invites automatically</span>
-                </label>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoInviteToggle}
+                      onChange={(e) => setAutoInviteToggle(e.target.checked)}
+                      className="rounded text-[#a53861] focus:ring-[#a53861]"
+                    />
+                    <span>Auto-send invites</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleGlobalPause}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                      syncSettings.isPaused
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        : 'bg-rose-600 hover:bg-rose-700 text-white'
+                    }`}
+                  >
+                    {syncSettings.isPaused ? (
+                      <>
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                        <span>Resume Ingestion</span>
+                      </>
+                    ) : (
+                      <>
+                        <Square className="h-3.5 w-3.5 fill-current" />
+                        <span>Stop Ingestion</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Notification Banner */}
@@ -2028,108 +2180,182 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                   <button
                     type="button"
                     onClick={() => setAutoSyncNotification(null)}
-                    className="text-muted-foreground hover:text-foreground text-xs font-bold pl-2"
+                    className="text-muted-foreground hover:text-foreground text-xs font-bold pl-2 cursor-pointer"
                   >
                     Dismiss
                   </button>
                 </div>
               )}
 
-              {/* Sheet URL & Action Bar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <div className="relative flex-1 min-w-0">
-                  <input
-                    type="url"
-                    value={googleSheetUrl}
-                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                    placeholder="Paste Google Sheets link (e.g. https://docs.google.com/spreadsheets/d/...)"
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861] h-[36px]"
-                  />
+              {/* Role Sheets Selector Tabs */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">Select Role Google Sheet:</span>
+                  <span className="text-[11px]">
+                    {isSilentPolling
+                      ? 'Checking Google Sheets...'
+                      : lastAutoSyncTime
+                        ? `Last polled ${lastAutoSyncTime.toLocaleTimeString()}`
+                        : ''}
+                  </span>
                 </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['HR Executive', 'Pastry Chef', 'Barista', 'General Manager', 'Cafe Staff'] as const).map((role) => {
+                    const isSelected = activeRoleSheet === role;
+                    const roleConfig = syncSettings.sheets[role];
+                    const hasUrl = !!roleConfig?.sheetUrl?.trim();
+                    const isAuto = !!roleConfig?.autoSync;
 
-                <div className="w-full sm:w-48">
-                  <select
-                    aria-label="Select role override"
-                    value={uploadRoleOverride}
-                    onChange={(e) => setUploadRoleOverride(e.target.value)}
-                    className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861] h-[36px]"
-                  >
-                    <option value="HR Executive">HR Executive</option>
-                    <option value="General Manager">Manager</option>
-                    <option value="Cafe Staff">Cafe Staff</option>
-                    <option value="Barista">Barista</option>
-                    <option value="Pastry Chef">Pastry Chef</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={sheetPreviewing || sheetSyncing || !googleSheetUrl.trim()}
-                    onClick={() => handleSyncGoogleSheet(true)}
-                    className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors disabled:opacity-50 cursor-pointer h-[36px]"
-                  >
-                    {sheetPreviewing ? (
-                      <>
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        <span>Checking...</span>
-                      </>
-                    ) : (
-                      <span>Preview</span>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={sheetSyncing || sheetPreviewing || !googleSheetUrl.trim()}
-                    onClick={() => handleSyncGoogleSheet(false)}
-                    className="inline-flex items-center justify-center rounded-lg bg-[#a53861] hover:bg-[#8c2d50] px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50 cursor-pointer h-[36px]"
-                  >
-                    {sheetSyncing ? (
-                      <>
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        <span>Syncing...</span>
-                      </>
-                    ) : (
-                      <span>Sync Now</span>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSheetUpdateUrlInput(googleSheetUpdateUrl);
-                      setShowSheetSetupModal(true);
-                    }}
-                    className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer h-[36px]"
-                    title="Configure automatic writing of status (Qualified / Converted / Not Interested) back to Google Sheet"
-                  >
-                    <Link2 className="mr-1.5 h-3.5 w-3.5 text-[#a53861]" />
-                    <span>Sheet Sync Setup</span>
-                  </button>
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => {
+                          setActiveRoleSheet(role);
+                          setUploadRoleOverride(role);
+                          setCurrentSheetUrlInput(syncSettings.sheets[role]?.sheetUrl || '');
+                        }}
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                          isSelected
+                            ? 'bg-[#a53861] text-white border-[#a53861] shadow-xs'
+                            : 'bg-background hover:bg-muted text-foreground border-border'
+                        }`}
+                      >
+                        <span>{role}</span>
+                        {isAuto ? (
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              isSelected ? 'bg-emerald-300 animate-pulse' : 'bg-emerald-500'
+                            }`}
+                            title="Auto-sync active"
+                          />
+                        ) : hasUrl ? (
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              isSelected ? 'bg-amber-300' : 'bg-amber-500'
+                            }`}
+                            title="Sheet configured (Manual)"
+                          />
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                <p>
-                  Ensure the Google Sheet sharing setting is set to &ldquo;Anyone with the link can view&rdquo;.
-                </p>
-                {googleSheetUpdateUrl.trim() ? (
-                  <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
-                    <Check className="h-3 w-3 stroke-[3]" /> Sheet status write connected
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSheetUpdateUrlInput(googleSheetUpdateUrl);
-                      setShowSheetSetupModal(true);
-                    }}
-                    className="text-[#a53861] hover:underline cursor-pointer font-medium"
-                  >
-                    Connect live status write back to Google Sheet
-                  </button>
-                )}
+              {/* Active Role Sheet Config & Actions */}
+              <div className="rounded-xl border border-border bg-card p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-foreground">
+                      Sheet for: <span className="text-[#a53861]">{activeRoleSheet}</span>
+                    </span>
+                    {syncSettings.sheets[activeRoleSheet]?.lastSyncTime && (
+                      <span className="text-[11px] text-muted-foreground">
+                        (Last synced: {new Date(syncSettings.sheets[activeRoleSheet]!.lastSyncTime!).toLocaleTimeString()})
+                      </span>
+                    )}
+                  </div>
+
+                  <label className="inline-flex items-center gap-1.5 text-xs text-foreground font-medium cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!syncSettings.sheets[activeRoleSheet]?.autoSync}
+                      onChange={() => handleToggleAutoSync(activeRoleSheet)}
+                      disabled={syncSettings.isPaused}
+                      className="rounded text-[#a53861] focus:ring-[#a53861]"
+                    />
+                    <span>Auto-sync new {activeRoleSheet} leads</span>
+                  </label>
+                </div>
+
+                {/* Sheet URL & Action Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type="url"
+                      value={currentSheetUrlInput}
+                      onChange={(e) => setCurrentSheetUrlInput(e.target.value)}
+                      onBlur={() => handleSaveSheetUrl(activeRoleSheet, currentSheetUrlInput)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveSheetUrl(activeRoleSheet, currentSheetUrlInput);
+                        }
+                      }}
+                      placeholder={`Paste Google Sheet link for ${activeRoleSheet}...`}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#a53861] h-[36px]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={sheetPreviewing || sheetSyncing || !currentSheetUrlInput.trim()}
+                      onClick={() => handleSyncGoogleSheet(true)}
+                      className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors disabled:opacity-50 cursor-pointer h-[36px]"
+                    >
+                      {sheetPreviewing ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          <span>Checking...</span>
+                        </>
+                      ) : (
+                        <span>Preview</span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={sheetSyncing || sheetPreviewing || !currentSheetUrlInput.trim()}
+                      onClick={() => handleSyncGoogleSheet(false)}
+                      className="inline-flex items-center justify-center rounded-lg bg-[#a53861] hover:bg-[#8c2d50] px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50 cursor-pointer h-[36px]"
+                    >
+                      {sheetSyncing ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          <span>Syncing...</span>
+                        </>
+                      ) : (
+                        <span>Sync Now</span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSheetUpdateUrlInput(googleSheetUpdateUrl);
+                        setShowSheetSetupModal(true);
+                      }}
+                      className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer h-[36px]"
+                      title="Configure automatic writing of status (Qualified / Converted / Not Interested) back to Google Sheet"
+                    >
+                      <Link2 className="mr-1.5 h-3.5 w-3.5 text-[#a53861]" />
+                      <span>Sheet Sync Setup</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <p>
+                    Changes saved here sync in real-time to your other devices. Ensure sheet is set to &ldquo;Anyone with the link can view&rdquo;.
+                  </p>
+                  {googleSheetUpdateUrl.trim() ? (
+                    <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
+                      <Check className="h-3 w-3 stroke-[3]" /> Sheet status write connected
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSheetUpdateUrlInput(googleSheetUpdateUrl);
+                        setShowSheetSetupModal(true);
+                      }}
+                      className="text-[#a53861] hover:underline cursor-pointer font-medium"
+                    >
+                      Connect live status write back to Google Sheet
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Preview Drawer */}
