@@ -947,28 +947,38 @@ export default function AdminDashboard() {
   const handleSaveSheetUrl = async (role: string, newUrl: string) => {
     const trimmed = newUrl.trim();
     const currentCfg = syncSettings.sheets[role] || { autoSync: false, lastSyncTime: null, lastSyncCount: 0 };
-    const updatedSheets = {
-      ...syncSettings.sheets,
-      [role]: {
-        ...currentCfg,
-        sheetUrl: trimmed,
-        ...(trimmed === '' ? { autoSync: false } : {}),
+
+    setSyncSettings((prev) => ({
+      ...prev,
+      sheets: {
+        ...prev.sheets,
+        [role]: {
+          ...(prev.sheets[role] || currentCfg),
+          sheetUrl: trimmed,
+          ...(trimmed === '' ? { autoSync: false } : {}),
+        },
       },
-    };
-    const updated = {
-      ...syncSettings,
-      sheets: updatedSheets,
-    };
-    setSyncSettings(updated);
+    }));
 
     try {
-      await fetch('/api/sync-settings', {
+      const res = await fetch('/api/sync-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sheets: updatedSheets,
-        }),
+        body: JSON.stringify(
+          trimmed === ''
+            ? { clearRole: role }
+            : {
+                roleUpdate: {
+                  role,
+                  sheetUrl: trimmed,
+                },
+              }
+        ),
       });
+      const data = await res.json();
+      if (data?.settings) {
+        setSyncSettings(data.settings);
+      }
     } catch (err) {
       console.error('Error saving universal sheet URL:', err);
     }
@@ -982,27 +992,32 @@ export default function AdminDashboard() {
       return;
     }
     const nextVal = !currentCfg.autoSync;
-    const updatedSheets = {
-      ...syncSettings.sheets,
-      [role]: {
-        ...currentCfg,
-        autoSync: nextVal,
+    setSyncSettings((prev) => ({
+      ...prev,
+      sheets: {
+        ...prev.sheets,
+        [role]: {
+          ...(prev.sheets[role] || currentCfg),
+          autoSync: nextVal,
+        },
       },
-    };
-    const updated = {
-      ...syncSettings,
-      sheets: updatedSheets,
-    };
-    setSyncSettings(updated);
+    }));
 
     try {
-      await fetch('/api/sync-settings', {
+      const res = await fetch('/api/sync-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sheets: updatedSheets,
+          roleUpdate: {
+            role,
+            autoSync: nextVal,
+          },
         }),
       });
+      const data = await res.json();
+      if (data?.settings) {
+        setSyncSettings(data.settings);
+      }
     } catch (err) {
       console.error('Error toggling auto sync:', err);
     }
@@ -1010,26 +1025,67 @@ export default function AdminDashboard() {
 
   // 5. Clear Sheet Link to Configure New One (with Confirmation)
   const handleClearSheetUrl = async () => {
-    const existingUrl = syncSettings.sheets[activeRoleSheet]?.sheetUrl?.trim() || currentSheetUrlInput.trim();
+    const roleToClear = activeRoleSheet;
+    const existingUrl =
+      syncSettings.sheets[roleToClear]?.sheetUrl?.trim() || currentSheetUrlInput.trim();
+
     if (!existingUrl) {
       setCurrentSheetUrlInput('');
-      const inputEl = document.getElementById('role-sheet-url-input');
-      if (inputEl) inputEl.focus();
+      const inputEl = document.getElementById('role-sheet-url-input') as HTMLInputElement | null;
+      if (inputEl) {
+        inputEl.value = '';
+        inputEl.focus();
+      }
       return;
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to remove the Google Sheet link for "${activeRoleSheet}"?\n\nThis will clear the existing link so you can place a new link.`
+      `Are you sure you want to remove the Google Sheet link for "${roleToClear}"?\n\nThis will clear the link from all devices so you can place a new link.`
     );
     if (!confirmed) return;
 
+    // Immediately clear local inputs & preview
     setCurrentSheetUrlInput('');
     setSheetPreviewData(null);
     setSheetSyncResult(null);
-    await handleSaveSheetUrl(activeRoleSheet, '');
 
-    const inputEl = document.getElementById('role-sheet-url-input');
+    // Update local state immediately
+    setSyncSettings((prev) => ({
+      ...prev,
+      sheets: {
+        ...prev.sheets,
+        [roleToClear]: {
+          ...(prev.sheets[roleToClear] || {}),
+          sheetUrl: '',
+          autoSync: false,
+          lastSyncTime: null,
+          lastSyncCount: 0,
+        },
+      },
+    }));
+
+    // Send clear command to cloud database
+    try {
+      const res = await fetch('/api/sync-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clearRole: roleToClear,
+        }),
+      });
+      const data = await res.json();
+      if (data?.settings) {
+        setSyncSettings(data.settings);
+      }
+      setAutoSyncNotification(`Sheet link for ${roleToClear} removed. You can now enter a new link.`);
+      setTimeout(() => setAutoSyncNotification(null), 4000);
+    } catch (err) {
+      console.error('Error clearing universal sheet URL:', err);
+    }
+
+    const inputEl = document.getElementById('role-sheet-url-input') as HTMLInputElement | null;
     if (inputEl) {
+      inputEl.value = '';
       inputEl.focus();
     }
   };
@@ -2223,7 +2279,13 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       type="url"
                       value={currentSheetUrlInput}
                       onChange={(e) => setCurrentSheetUrlInput(e.target.value)}
-                      onBlur={() => handleSaveSheetUrl(activeRoleSheet, currentSheetUrlInput)}
+                      onBlur={() => {
+                        const trimmed = currentSheetUrlInput.trim();
+                        const savedUrl = syncSettings.sheets[activeRoleSheet]?.sheetUrl || '';
+                        if (trimmed !== savedUrl) {
+                          handleSaveSheetUrl(activeRoleSheet, trimmed);
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           handleSaveSheetUrl(activeRoleSheet, currentSheetUrlInput);
@@ -2269,6 +2331,7 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
 
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={handleClearSheetUrl}
                       className="inline-flex items-center justify-center rounded-lg border border-border bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer h-[36px]"
                       title="Clear current sheet link and place a new one"

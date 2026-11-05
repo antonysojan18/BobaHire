@@ -99,39 +99,89 @@ export async function getUniversalSyncSettings(): Promise<UniversalSyncSettings>
   }
 }
 
+export interface SyncSettingsPayload extends Partial<UniversalSyncSettings> {
+  clearRole?: string;
+  roleUpdate?: {
+    role: string;
+    sheetUrl?: string;
+    autoSync?: boolean;
+    lastSyncTime?: string | null;
+    lastSyncCount?: number;
+  };
+}
+
 /**
  * Update universal sync settings in Supabase so changes reflect on all devices
  */
 export async function updateUniversalSyncSettings(
-  partial: Partial<UniversalSyncSettings>
+  partial: SyncSettingsPayload
 ): Promise<UniversalSyncSettings> {
   const current = await getUniversalSyncSettings();
+
+  const updatedSheets = { ...current.sheets };
+
+  if (partial.sheets) {
+    for (const [r, cfg] of Object.entries(partial.sheets)) {
+      updatedSheets[r] = {
+        ...(updatedSheets[r] || { autoSync: false, lastSyncTime: null, lastSyncCount: 0 }),
+        ...cfg,
+      };
+    }
+  }
+
+  if (partial.roleUpdate?.role) {
+    const r = partial.roleUpdate.role;
+    updatedSheets[r] = {
+      ...(updatedSheets[r] || { autoSync: false, lastSyncTime: null, lastSyncCount: 0 }),
+      ...(partial.roleUpdate.sheetUrl !== undefined ? { sheetUrl: partial.roleUpdate.sheetUrl } : {}),
+      ...(partial.roleUpdate.autoSync !== undefined ? { autoSync: partial.roleUpdate.autoSync } : {}),
+      ...(partial.roleUpdate.lastSyncTime !== undefined ? { lastSyncTime: partial.roleUpdate.lastSyncTime } : {}),
+      ...(partial.roleUpdate.lastSyncCount !== undefined ? { lastSyncCount: partial.roleUpdate.lastSyncCount } : {}),
+    };
+  }
+
+  if (partial.clearRole) {
+    const r = partial.clearRole;
+    updatedSheets[r] = {
+      ...(updatedSheets[r] || {}),
+      sheetUrl: '',
+      autoSync: false,
+      lastSyncTime: null,
+      lastSyncCount: 0,
+    };
+  }
+
   const updated: UniversalSyncSettings = {
     ...current,
-    ...partial,
-    sheets: {
-      ...current.sheets,
-      ...(partial.sheets || {}),
-    },
+    ...(partial.isPaused !== undefined ? { isPaused: partial.isPaused } : {}),
+    ...(partial.autoSyncInterval !== undefined ? { autoSyncInterval: partial.autoSyncInterval } : {}),
+    ...(partial.selectedRole !== undefined ? { selectedRole: partial.selectedRole } : {}),
+    ...(partial.activeSyncLock !== undefined ? { activeSyncLock: partial.activeSyncLock } : {}),
+    ...(partial.lastGlobalSyncTime !== undefined ? { lastGlobalSyncTime: partial.lastGlobalSyncTime } : {}),
+    sheets: updatedSheets,
   };
 
   try {
-    const { data: existing } = await supabase
+    const { data: existing, error: selErr } = await supabase
       .from('candidates')
       .select('id')
       .eq('email', SYSTEM_CONFIG_EMAIL)
       .limit(1);
 
     if (existing && existing.length > 0) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('candidates')
         .update({
           questionnaire_data: updated,
           status: 'system',
         })
         .eq('id', existing[0].id);
+
+      if (updErr) {
+        console.error('Failed to update system config in Supabase:', updErr);
+      }
     } else {
-      await supabase.from('candidates').insert([
+      const { error: insErr } = await supabase.from('candidates').insert([
         {
           name: 'SYSTEM_SYNC_CONFIG',
           email: SYSTEM_CONFIG_EMAIL,
@@ -140,6 +190,9 @@ export async function updateUniversalSyncSettings(
           questionnaire_data: updated,
         },
       ]);
+      if (insErr) {
+        console.error('Failed to insert system config in Supabase:', insErr);
+      }
     }
   } catch (err) {
     console.error('Failed to update universal sync settings:', err);

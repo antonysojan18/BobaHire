@@ -302,14 +302,10 @@ export async function POST(req: Request) {
         await updateUniversalSyncSettings({
           activeSyncLock: null,
           lastGlobalSyncTime: new Date().toISOString(),
-          sheets: {
-            ...settings.sheets,
-            [roleOverride]: {
-              sheetUrl: sheetUrl || settings.sheets[roleOverride]?.sheetUrl || '',
-              autoSync: settings.sheets[roleOverride]?.autoSync ?? false,
-              lastSyncTime: new Date().toISOString(),
-              lastSyncCount: newCount,
-            },
+          roleUpdate: {
+            role: roleOverride,
+            lastSyncTime: new Date().toISOString(),
+            lastSyncCount: newCount,
           },
         });
       } catch (saveErr) {
