@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendEmailWithRetry } from '@/lib/mail';
 
 function formatUtcIcsDate(date: Date): string {
   return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
@@ -346,17 +347,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid action type' }, { status: 400 });
     }
 
-    // Email dispatch (Nodemailer Gmail with calendar invite attachment and automatic HR sync)
+    // Email dispatch (reusing pooled Nodemailer Gmail transporter with retry to prevent Google 421/454 throttles)
     if (gmailUser && gmailPass) {
       try {
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            user: gmailUser,
-            pass: gmailPass,
-          },
-        });
-
         // 1. Send Interview Email to Candidate
         const candidateMailOptions: any = {
           from: `"BobaLive Recruitment" <${gmailUser}>`,
@@ -379,7 +372,7 @@ export async function POST(req: Request) {
           ];
         }
 
-        await transporter.sendMail(candidateMailOptions);
+        await sendEmailWithRetry(candidateMailOptions);
 
         // 2. Automatically sync to HR Google Calendar if an interview was scheduled
         if (action === 'interview' && icsContent) {
@@ -404,7 +397,7 @@ export async function POST(req: Request) {
             </div>
           `;
 
-          await transporter.sendMail({
+          await sendEmailWithRetry({
             from: `"BobaLive Recruitment" <${gmailUser}>`,
             to: hrNotificationEmail,
             subject: hrSubject,

@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { getAppBaseUrl } from '@/lib/url';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendEmailWithRetry } from '@/lib/mail';
 
 export interface RawLeadData {
   name: string;
@@ -454,12 +455,7 @@ export async function processCandidateLead(
 
     if (gmailUser && gmailPass) {
       try {
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user: gmailUser, pass: gmailPass },
-        });
-
-        await transporter.sendMail({
+        await sendEmailWithRetry({
           from: `"BobaLive Hiring Team" <${gmailUser}>`,
           to: email,
           subject: `Next Step: Upload your CV for ${screening.normalizedRole}`,

@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
-
 import { getAppBaseUrl } from '@/lib/url';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendEmailWithRetry } from '@/lib/mail';
 
 export async function POST(req: Request) {
   try {
@@ -113,15 +113,7 @@ export async function POST(req: Request) {
 
     if (gmailUser && gmailPass) {
       try {
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            user: gmailUser,
-            pass: gmailPass,
-          },
-        });
-
-        await transporter.sendMail({
+        await sendEmailWithRetry({
           from: `"Recruitment Team" <${gmailUser}>`,
           to: email,
           subject: `Next Step: Upload your CV for the ${role} position`,

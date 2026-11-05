@@ -288,7 +288,11 @@ export async function POST(req: Request) {
           newCount++;
         }
 
-        if (res.emailDispatched) emailsSent++;
+        if (res.emailDispatched) {
+          emailsSent++;
+          // Pacing delay between email dispatches to prevent Google SMTP burst throttling
+          await new Promise((resolve) => setTimeout(resolve, 1100));
+        }
         if (res.whatsappDispatched) whatsappSent++;
 
         results.push(res);

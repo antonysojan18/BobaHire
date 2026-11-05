@@ -207,11 +207,18 @@ export default function AdminDashboard() {
     setEmailProgress({ total: finalTargets.length, current: 0, currentName: '' });
     let sentCount = 0;
     const errors: string[] = [];
+    const successfulIds: string[] = [];
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
     for (let i = 0; i < finalTargets.length; i++) {
       const c = finalTargets[i];
       setEmailProgress({ total: finalTargets.length, current: i + 1, currentName: c.name });
+
+      // Pacing delay between successive email dispatches to prevent Gmail SMTP rate limiting (454 / 421)
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1300));
+      }
+
       try {
         const uploadUrl = `${baseUrl}/upload?id=${c.id}&name=${encodeURIComponent(c.name)}&role=${encodeURIComponent(c.role)}`;
         const res = await fetch('/api/send-status-email', {
@@ -231,6 +238,7 @@ export default function AdminDashboard() {
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
           sentCount++;
+          successfulIds.push(c.id);
         } else {
           errors.push(`${c.name} (${c.email}): ${data.error || 'Failed'}`);
         }
@@ -242,7 +250,10 @@ export default function AdminDashboard() {
 
     setBatchEmailSending(false);
     setEmailProgress(null);
-    setSelectedCandidates([]);
+
+    // Keep only failed candidates selected so user can retry cleanly if needed
+    setSelectedCandidates((prev) => prev.filter((id) => !successfulIds.includes(id)));
+
     if (errors.length > 0) {
       alert(`Sent ${sentCount} of ${finalTargets.length} emails.\n\nErrors:\n${errors.slice(0, 5).join('\n')}`);
     } else {
