@@ -199,13 +199,14 @@ export default function AdminDashboard() {
       return;
     }
 
-    if (!confirm(`Send resume upload reminder emails to ${finalTargets.length} selected candidate(s)?`)) {
+    if (!confirm(`Send resume upload invitation emails to ${finalTargets.length} selected candidate(s)?`)) {
       return;
     }
 
     setBatchEmailSending(true);
     setEmailProgress({ total: finalTargets.length, current: 0, currentName: '' });
     let sentCount = 0;
+    const errors: string[] = [];
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
     for (let i = 0; i < finalTargets.length; i++) {
@@ -222,23 +223,31 @@ export default function AdminDashboard() {
             phone: c.phone || '',
             location: c.location || '',
             role: c.role,
-            action: 'reminder',
+            action: 'invite',
             sendWhatsapp: false,
             uploadUrl,
           }),
         });
-        if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success) {
           sentCount++;
+        } else {
+          errors.push(`${c.name} (${c.email}): ${data.error || 'Failed'}`);
         }
-      } catch (err) {
-        console.error(`Failed to send reminder email to ${c.email}:`, err);
+      } catch (err: any) {
+        console.error(`Failed to send invite email to ${c.email}:`, err);
+        errors.push(`${c.name} (${c.email}): ${err?.message || 'Network error'}`);
       }
     }
 
     setBatchEmailSending(false);
     setEmailProgress(null);
     setSelectedCandidates([]);
-    alert(`Successfully sent resume link via email to ${sentCount} of ${finalTargets.length} candidate(s)!`);
+    if (errors.length > 0) {
+      alert(`Sent ${sentCount} of ${finalTargets.length} emails.\n\nErrors:\n${errors.slice(0, 5).join('\n')}`);
+    } else {
+      alert(`Successfully sent CV upload invitations to all ${sentCount} candidate(s)!`);
+    }
   };
 
   const handleBatchSendWhatsApp = async (targets?: Candidate[]) => {
@@ -864,9 +873,13 @@ export default function AdminDashboard() {
   const [currentSheetUrlInput, setCurrentSheetUrlInput] = useState<string>(
     DEFAULT_SYNC_SETTINGS.sheets['HR Executive']?.sheetUrl || ''
   );
+  const [savingSheetRole, setSavingSheetRole] = useState<string | null>(null);
 
-  // Sync input text when active role or cloud settings change
+  // Sync input text when active role or cloud settings change (without interrupting active typing)
   useEffect(() => {
+    if (typeof document !== 'undefined' && document.activeElement?.id === 'role-sheet-url-input') {
+      return;
+    }
     const url = syncSettings.sheets[activeRoleSheet]?.sheetUrl || '';
     setCurrentSheetUrlInput(url);
     setUploadRoleOverride(activeRoleSheet);
@@ -921,14 +934,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json();
         if (data?.settings) {
-          setSyncSettings((prev) => ({
-            ...prev,
-            ...data.settings,
-            sheets: {
-              ...prev.sheets,
-              ...(data.settings.sheets || {}),
-            },
-          }));
+          setSyncSettings(data.settings);
         }
       }
     } catch (err) {
@@ -936,10 +942,10 @@ export default function AdminDashboard() {
     }
   };
 
-  // 2. Poll Cloud Sync Settings every 8 seconds so all devices stay identical
+  // 2. Poll Cloud Sync Settings every 3.5 seconds so all devices stay identical in real-time
   useEffect(() => {
     fetchCloudSyncSettings();
-    const interval = setInterval(fetchCloudSyncSettings, 8000);
+    const interval = setInterval(fetchCloudSyncSettings, 3500);
     return () => clearInterval(interval);
   }, []);
 
@@ -948,6 +954,7 @@ export default function AdminDashboard() {
     const trimmed = newUrl.trim();
     const currentCfg = syncSettings.sheets[role] || { autoSync: false, lastSyncTime: null, lastSyncCount: 0 };
 
+    setSavingSheetRole(role);
     setSyncSettings((prev) => ({
       ...prev,
       sheets: {
@@ -981,6 +988,8 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error('Error saving universal sheet URL:', err);
+    } finally {
+      setSavingSheetRole(null);
     }
   };
 
@@ -2241,9 +2250,17 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                     <span className="text-xs font-bold text-foreground">
                       Sheet for: <span className="text-[#a53861]">{activeRoleSheet}</span>
                     </span>
-                    {syncSettings.sheets[activeRoleSheet]?.lastSyncTime && (
+                    {savingSheetRole === activeRoleSheet ? (
+                      <span className="text-[11px] text-amber-600 font-semibold inline-flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Saving to all devices...
+                      </span>
+                    ) : syncSettings.sheets[activeRoleSheet]?.sheetUrl ? (
+                      <span className="text-[11px] text-emerald-600 font-semibold inline-flex items-center gap-1">
+                        <Check className="h-3 w-3 stroke-[3]" /> Synced across all devices
+                      </span>
+                    ) : (
                       <span className="text-[11px] text-muted-foreground">
-                        (Last synced: {new Date(syncSettings.sheets[activeRoleSheet]!.lastSyncTime!).toLocaleTimeString()})
+                        (No sheet configured)
                       </span>
                     )}
                   </div>
@@ -2278,7 +2295,24 @@ Pooja Varma,pooja.varma.meta@example.com,+919876543213,HR Executive,Kochi,Kerala
                       id="role-sheet-url-input"
                       type="url"
                       value={currentSheetUrlInput}
-                      onChange={(e) => setCurrentSheetUrlInput(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCurrentSheetUrlInput(val);
+                        // Immediately auto-save if a full Google Sheet link is entered
+                        if (
+                          val.trim().includes('docs.google.com/spreadsheets') ||
+                          (val.trim().startsWith('http') && val.trim().length > 35)
+                        ) {
+                          handleSaveSheetUrl(activeRoleSheet, val.trim());
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData.getData('text').trim();
+                        if (pasted.startsWith('http://') || pasted.startsWith('https://')) {
+                          setCurrentSheetUrlInput(pasted);
+                          handleSaveSheetUrl(activeRoleSheet, pasted);
+                        }
+                      }}
                       onBlur={() => {
                         const trimmed = currentSheetUrlInput.trim();
                         const savedUrl = syncSettings.sheets[activeRoleSheet]?.sheetUrl || '';

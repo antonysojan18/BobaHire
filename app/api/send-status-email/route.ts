@@ -97,16 +97,20 @@ export async function POST(req: Request) {
     }
 
     const gmailUser = process.env.GMAIL_USER || 'resume.ai2026@gmail.com';
-    const gmailPass = process.env.GMAIL_APP_PASSWORD;
+    const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
     const hrNotificationEmail = process.env.HR_NOTIFICATION_EMAIL || process.env.HR_EMAIL || gmailUser;
 
     let subject = '';
     let htmlContent = '';
     let icsContent = '';
 
-    if (action === 'reminder') {
+    if (action === 'reminder' || action === 'invite') {
       const uploadUrl = String(body.uploadUrl || '').trim();
-      subject = `Reminder: Please upload your CV for ${role} — BobaLive`;
+      const isReminder = action === 'reminder';
+      subject = isReminder
+        ? `Reminder: Please upload your CV for ${role} — BobaLive`
+        : `Next Step: Upload your CV for ${role} — BobaLive`;
+
       htmlContent = `
         <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
           <div style="text-align: center; margin-bottom: 20px;">
@@ -117,10 +121,14 @@ export async function POST(req: Request) {
             Hello <strong>${name}</strong>,
           </p>
           <p style="color: #334155; font-size: 15px; line-height: 1.6;">
-            This is a reminder regarding your application for the <strong>${role}</strong> position at BobaLive.
+            ${
+              isReminder
+                ? `This is a reminder regarding your application for the <strong>${role}</strong> position at BobaLive.`
+                : `Thank you for your interest in the <strong>${role}</strong> position at BobaLive!`
+            }
           </p>
           <p style="color: #334155; font-size: 15px; line-height: 1.6;">
-            Please click the button below to upload your resume (PDF) so our recruitment team can evaluate your profile and proceed with your application:
+            Please click the button below to upload your resume (PDF) so our recruitment team can evaluate your profile and schedule your interview:
           </p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${uploadUrl}" style="background-color: #a53861; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 10px rgba(165, 56, 97, 0.25);">
@@ -447,10 +455,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // Optional WhatsApp dispatch for reminder or when requested
+    // Optional WhatsApp dispatch ONLY when explicitly requested
     let whatsappDispatched = false;
     let whatsappResult: any = null;
-    const shouldSendWhatsapp = (action === 'reminder' || body.sendWhatsapp) && phone;
+    const shouldSendWhatsapp = body.sendWhatsapp === true && !!phone;
 
     if (shouldSendWhatsapp) {
       const uploadUrl = String(body.uploadUrl || '').trim();

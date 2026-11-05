@@ -108,8 +108,8 @@ export async function POST(req: Request) {
     `;
 
     // 3. Dispatch email (Nodemailer Gmail with Resend fallback)
-    const gmailUser = process.env.GMAIL_USER;
-    const gmailPass = process.env.GMAIL_APP_PASSWORD;
+    const gmailUser = process.env.GMAIL_USER || 'resume.ai2026@gmail.com';
+    const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
     if (gmailUser && gmailPass) {
       try {

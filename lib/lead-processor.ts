@@ -449,8 +449,8 @@ export async function processCandidateLead(
       </div>
     `;
 
-    const gmailUser = process.env.GMAIL_USER;
-    const gmailPass = process.env.GMAIL_APP_PASSWORD;
+    const gmailUser = process.env.GMAIL_USER || 'resume.ai2026@gmail.com';
+    const gmailPass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
     if (gmailUser && gmailPass) {
       try {
