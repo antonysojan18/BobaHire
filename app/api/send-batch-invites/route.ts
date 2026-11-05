@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { sendEmailWithRetry } from '@/lib/mail';
 import { getAppBaseUrl } from '@/lib/url';
 
+// Allow up to 60s for batch email dispatch on Vercel
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
@@ -26,7 +29,7 @@ export async function POST(req: Request) {
     const isReminder = action === 'reminder';
 
     const baseUrl = getAppBaseUrl(req);
-    const gmailUser = process.env.GMAIL_USER || 'resume.ai2026@gmail.com';
+    const gmailUser = (process.env.GMAIL_USER || 'resume.ai2026@gmail.com').trim();
 
     let sentCount = 0;
     const failedList: Array<{ name: string; email: string; error: string }> = [];
@@ -42,9 +45,9 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Mandatory pacing delay between emails to avoid Google SMTP rate limits (454 / 421)
+      // Safe pacing delay between emails over the pooled connection (900ms)
       if (i > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1100));
+        await new Promise((resolve) => setTimeout(resolve, 900));
       }
 
       const uploadUrl = `${baseUrl}/upload?id=${c.id}&name=${encodeURIComponent(name)}&role=${encodeURIComponent(role)}`;
@@ -92,12 +95,23 @@ export async function POST(req: Request) {
         });
         sentCount++;
       } catch (err: any) {
-        console.error(`Failed to send email to ${email}:`, err);
-        failedList.push({
-          name,
-          email,
-          error: err?.message || 'SMTP delivery failed',
-        });
+        const errMsg = err?.message || 'SMTP delivery failed';
+        console.error(`Failed to send email to ${email}:`, errMsg);
+        failedList.push({ name, email, error: errMsg });
+
+        // If Google has placed an active security cooldown (454 / tempauth), stop immediately
+        // so we don't hammer the server and prolong Google's temporary lockout!
+        if (errMsg.includes('454') || errMsg.includes('Too many login attempts')) {
+          console.warn('[Gmail Rate Limit] Active security cooldown detected. Halting remaining candidates in batch.');
+          for (let j = i + 1; j < candidates.length; j++) {
+            failedList.push({
+              name: String(candidates[j].name || 'Candidate').trim(),
+              email: String(candidates[j].email || '').trim().toLowerCase(),
+              error: 'Skipped: Google security cool-down in progress (454)',
+            });
+          }
+          break;
+        }
       }
     }
 

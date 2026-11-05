@@ -204,57 +204,92 @@ export default function AdminDashboard() {
     }
 
     setBatchEmailSending(true);
-    setEmailProgress({ total: finalTargets.length, current: 0, currentName: '' });
+    setEmailProgress({ total: finalTargets.length, current: 0, currentName: 'Starting...' });
+
+    // Send in chunks of 5 candidates to allow live UI progress and reuse pooled server connection
+    const CHUNK_SIZE = 5;
     let sentCount = 0;
     const errors: string[] = [];
     const successfulIds: string[] = [];
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    let isRateLimited = false;
 
-    for (let i = 0; i < finalTargets.length; i++) {
-      const c = finalTargets[i];
-      setEmailProgress({ total: finalTargets.length, current: i + 1, currentName: c.name });
+    for (let i = 0; i < finalTargets.length; i += CHUNK_SIZE) {
+      if (isRateLimited) break;
 
-      // Pacing delay between successive email dispatches to prevent Gmail SMTP rate limiting (454 / 421)
+      const chunk = finalTargets.slice(i, i + CHUNK_SIZE);
+      const chunkEnd = Math.min(i + chunk.length, finalTargets.length);
+      setEmailProgress({
+        total: finalTargets.length,
+        current: chunkEnd,
+        currentName: `Sending candidates ${i + 1} to ${chunkEnd}...`,
+      });
+
+      // Small pacing pause between sub-batches
       if (i > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1300));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
 
       try {
-        const uploadUrl = `${baseUrl}/upload?id=${c.id}&name=${encodeURIComponent(c.name)}&role=${encodeURIComponent(c.role)}`;
-        const res = await fetch('/api/send-status-email', {
+        const res = await fetch('/api/send-batch-invites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: c.name,
-            email: c.email,
-            phone: c.phone || '',
-            location: c.location || '',
-            role: c.role,
+            candidates: chunk.map((c) => ({
+              id: c.id,
+              name: c.name,
+              email: c.email,
+              role: c.role,
+              phone: c.phone || '',
+              location: c.location || '',
+            })),
             action: 'invite',
-            sendWhatsapp: false,
-            uploadUrl,
           }),
         });
+
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.success) {
-          sentCount++;
-          successfulIds.push(c.id);
+          sentCount += data.sentCount || 0;
+          const failedEmails = new Set(
+            (data.failedCandidates || []).map((f: any) => String(f.email || '').toLowerCase())
+          );
+
+          if (Array.isArray(data.failedCandidates) && data.failedCandidates.length > 0) {
+            for (const f of data.failedCandidates) {
+              errors.push(`${f.name} (${f.email}): ${f.error}`);
+              if (String(f.error).includes('454') || String(f.error).includes('Too many login attempts')) {
+                isRateLimited = true;
+              }
+            }
+          }
+
+          for (const c of chunk) {
+            if (!failedEmails.has(c.email.toLowerCase())) {
+              successfulIds.push(c.id);
+            }
+          }
         } else {
-          errors.push(`${c.name} (${c.email}): ${data.error || 'Failed'}`);
+          const errMsg = data.error || 'Batch delivery failed';
+          errors.push(`Batch (${i + 1}-${chunkEnd}): ${errMsg}`);
+          if (String(errMsg).includes('454') || String(errMsg).includes('Too many login attempts')) {
+            isRateLimited = true;
+          }
         }
       } catch (err: any) {
-        console.error(`Failed to send invite email to ${c.email}:`, err);
-        errors.push(`${c.name} (${c.email}): ${err?.message || 'Network error'}`);
+        errors.push(`Batch (${i + 1}-${chunkEnd}): ${err?.message || 'Network error'}`);
       }
     }
 
     setBatchEmailSending(false);
     setEmailProgress(null);
 
-    // Keep only failed candidates selected so user can retry cleanly if needed
+    // Keep only failed candidates selected so user can retry cleanly
     setSelectedCandidates((prev) => prev.filter((id) => !successfulIds.includes(id)));
 
-    if (errors.length > 0) {
+    if (isRateLimited) {
+      alert(
+        `Dispatched ${sentCount} of ${finalTargets.length} emails.\n\n⚠️ Google Security Cooldown Active (454 Too many login attempts):\nGoogle has temporarily locked new email authentications because multiple emails were sent in a short window.\n\n👉 What to do now:\nPlease pause for ~10 minutes without clicking Send so Google's temporary security lock expires. The remaining ${finalTargets.length - sentCount} unsent candidate(s) stay selected for you to retry with one click once the cooldown ends.`
+      );
+    } else if (errors.length > 0) {
       alert(`Sent ${sentCount} of ${finalTargets.length} emails.\n\nErrors:\n${errors.slice(0, 5).join('\n')}`);
     } else {
       alert(`Successfully sent CV upload invitations to all ${sentCount} candidate(s)!`);

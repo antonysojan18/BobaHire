@@ -16,7 +16,6 @@ export function getMailTransporter(): nodemailer.Transporter {
 
   if (!pooledTransporter) {
     pooledTransporter = nodemailer.createTransport({
-      service: 'gmail',
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
@@ -34,11 +33,13 @@ export function getMailTransporter(): nodemailer.Transporter {
 }
 
 /**
- * Sends an email with automatic retry and exponential backoff if Google SMTP throttles.
+ * Sends an email with automatic retry and exponential backoff for transient errors.
+ * Note: If Google returns 454 (Too many login attempts), it indicates an active account security
+ * cooldown, so we do NOT retry immediately to avoid prolonging the security lock.
  */
 export async function sendEmailWithRetry(
   mailOptions: nodemailer.SendMailOptions,
-  maxRetries = 3
+  maxRetries = 2
 ): Promise<nodemailer.SentMessageInfo> {
   let attempt = 0;
   while (attempt < maxRetries) {
@@ -48,27 +49,38 @@ export async function sendEmailWithRetry(
       return await transporter.sendMail(mailOptions);
     } catch (err: any) {
       const errMsg = err?.message || String(err);
-      const isThrottled =
+
+      // 454 is a Google security cooldown (tempauth) lasting 10-15 minutes.
+      // Retrying in seconds will fail and reset Google's lockout timer.
+      const isAccountLockout =
+        errMsg.includes('454') || errMsg.includes('Too many login attempts');
+
+      if (isAccountLockout) {
+        if (pooledTransporter) {
+          try { pooledTransporter.close(); } catch (_) {}
+          pooledTransporter = null;
+        }
+        throw new Error(
+          `Google SMTP security cool-down in progress (454 Too many login attempts). Please wait ~10 minutes for Google to lift the rate limit.`
+        );
+      }
+
+      // Transient errors (421 system load, socket drops, timeouts) can be retried
+      const isTransient =
         errMsg.includes('421') ||
-        errMsg.includes('454') ||
-        errMsg.includes('Too many login attempts') ||
         errMsg.includes('Temporary System Problem') ||
         errMsg.includes('ECONNRESET') ||
         errMsg.includes('ETIMEDOUT') ||
         errMsg.includes('Greeting never received');
 
-      // Reset pooled transporter on connection/auth errors so next attempt gets a clean connection
       if (pooledTransporter) {
-        try {
-          pooledTransporter.close();
-        } catch (_) {}
+        try { pooledTransporter.close(); } catch (_) {}
         pooledTransporter = null;
       }
 
-      if (isThrottled && attempt < maxRetries) {
-        // Backoff: 3s on attempt 1, 6s on attempt 2
-        const waitMs = attempt * 3000;
-        console.warn(`[Gmail SMTP Throttled] ${errMsg}. Retrying (attempt ${attempt + 1}/${maxRetries}) after ${waitMs}ms...`);
+      if (isTransient && attempt < maxRetries) {
+        const waitMs = attempt * 2500;
+        console.warn(`[Gmail SMTP Transient Error] ${errMsg}. Retrying in ${waitMs}ms...`);
         await new Promise((resolve) => setTimeout(resolve, waitMs));
       } else {
         throw err;
@@ -76,5 +88,5 @@ export async function sendEmailWithRetry(
     }
   }
 
-  throw new Error('Failed to dispatch email after maximum retries');
+  throw new Error('Failed to dispatch email after retry attempts');
 }
