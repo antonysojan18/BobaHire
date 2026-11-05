@@ -32,36 +32,96 @@ export interface ProcessLeadResult {
   questionnaire: Record<string, any>;
 }
 
-/**
- * Extracts the CSV export URL from any public or shared Google Sheets link.
- */
-export function extractGoogleSheetExportUrl(inputUrl: string): {
+export interface GoogleSheetExportInfo {
   exportUrl: string;
   sheetId: string;
-  gid: string;
-} | null {
+  gid: string | null;
+  candidateUrls: string[];
+}
+
+/**
+ * Extracts the CSV export URL and fallback candidate endpoints from any public or shared Google Sheets link.
+ * Supports standard spreadsheets, published-to-web links, and Google Drive links.
+ */
+export function extractGoogleSheetExportUrl(inputUrl: string): GoogleSheetExportInfo | null {
   try {
-    const rawUrl = inputUrl.trim();
-    if (!rawUrl.includes('docs.google.com/spreadsheets')) {
+    if (!inputUrl || typeof inputUrl !== 'string') return null;
+
+    let rawUrl = inputUrl.trim().replace(/^["'<]+|["'>]+$/g, '').trim();
+    if (!rawUrl.includes('docs.google.com/spreadsheets') && !rawUrl.includes('drive.google.com')) {
       return null;
     }
 
-    // Match /d/{sheetId}
-    const idMatch = rawUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    if (!idMatch || !idMatch[1]) {
+    // 1. Published to web format: /spreadsheets/d/e/{pubId}/pub...
+    const pubMatch = rawUrl.match(/\/d\/e\/([a-zA-Z0-9-_]+)/);
+    if (pubMatch && pubMatch[1]) {
+      const pubId = pubMatch[1];
+      const gidMatch = rawUrl.match(/[?&#]gid=([0-9]+)/);
+      const gid = gidMatch && gidMatch[1] ? gidMatch[1] : null;
+
+      const candidateUrls: string[] = [];
+      if (gid) {
+        candidateUrls.push(`https://docs.google.com/spreadsheets/d/e/${pubId}/pub?output=csv&gid=${gid}`);
+      }
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/e/${pubId}/pub?output=csv`);
+
+      return {
+        exportUrl: candidateUrls[0],
+        sheetId: pubId,
+        gid,
+        candidateUrls,
+      };
+    }
+
+    // 2. Google Drive viewer link: drive.google.com/file/d/{id} or drive.google.com/open?id={id}
+    let sheetId = '';
+    const driveMatch =
+      rawUrl.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/) ||
+      rawUrl.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9-_]+)/);
+
+    if (driveMatch && driveMatch[1]) {
+      sheetId = driveMatch[1];
+    } else {
+      // 3. Standard Google Sheets URL: /spreadsheets/d/{sheetId}
+      const idMatch = rawUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+      if (idMatch && idMatch[1]) {
+        sheetId = idMatch[1];
+      }
+    }
+
+    if (!sheetId) {
       return null;
     }
-    const sheetId = idMatch[1];
 
     // Match gid (tab id) if present
-    let gid = '0';
     const gidParamMatch = rawUrl.match(/[?&#]gid=([0-9]+)/);
-    if (gidParamMatch && gidParamMatch[1]) {
-      gid = gidParamMatch[1];
+    const gid = gidParamMatch && gidParamMatch[1] ? gidParamMatch[1] : null;
+
+    const candidateUrls: string[] = [];
+
+    if (gid) {
+      // When gid is explicitly in the URL:
+      // Try standard export with gid -> GViz with gid -> default export -> default GViz
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`);
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`);
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`);
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+    } else {
+      // When NO gid is in the URL:
+      // DO NOT default to gid=0, because modern sheets may not have tab 0 (which triggers Google 400 Bad Request)!
+      // Try default export (exports first tab) -> default GViz -> explicit gid=0 export -> explicit gid=0 GViz
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`);
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`);
+      candidateUrls.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=0`);
     }
 
-    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-    return { exportUrl, sheetId, gid };
+    return {
+      exportUrl: candidateUrls[0],
+      sheetId,
+      gid,
+      candidateUrls,
+    };
   } catch (err) {
     console.error('Error extracting Google Sheet export URL:', err);
     return null;
@@ -108,7 +168,7 @@ export function normalizeMetaRow(row: Record<string, any>): {
   };
 
   // Name extraction
-  let name = getField('full_name', 'fullname', 'name', 'candidate_name', 'applicant_name');
+  let name = getField('full_name', 'fullname', 'name', 'candidate_name', 'applicant_name', 'student_name', 'candidate');
   if (!name) {
     const firstName = getField('first_name', 'firstname');
     const lastName = getField('last_name', 'lastname');
@@ -119,10 +179,10 @@ export function normalizeMetaRow(row: Record<string, any>): {
   if (!name) name = 'Candidate';
 
   // Email extraction
-  const email = getField('email', 'email_address', 'emailaddress', 'candidate_email').toLowerCase();
+  const email = getField('email', 'email_address', 'emailaddress', 'candidate_email', 'email_id', 'emailid', 'mail', 'candidate_email_address').toLowerCase();
 
   // Phone extraction
-  let phone = getField('phone_number', 'phonenumber', 'phone', 'mobile', 'contact_number', 'contact');
+  let phone = getField('phone_number', 'phonenumber', 'phone', 'phone_no', 'phoneno', 'mobile', 'mobile_number', 'contact_number', 'contact_no', 'contact', 'whatsapp', 'whatsapp_number');
   // Clean phone number (keep leading + or digits)
   phone = phone.replace(/[^\d+]/g, '');
 

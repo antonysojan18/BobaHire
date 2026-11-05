@@ -9,6 +9,7 @@ import {
 
 /**
  * Fetch and parse CSV from a Google Sheets public or view-shared URL
+ * with multi-strategy fallback (Standard CSV Export, GViz CSV, and gid fallbacks)
  */
 async function fetchGoogleSheetRows(sheetUrl: string): Promise<Record<string, any>[]> {
   const exportInfo = extractGoogleSheetExportUrl(sheetUrl);
@@ -18,32 +19,93 @@ async function fetchGoogleSheetRows(sheetUrl: string): Promise<Record<string, an
     );
   }
 
-  // Fetch public CSV export with cache-buster timestamp
-  const freshUrl = `${exportInfo.exportUrl}&_ts=${Date.now()}`;
-  const res = await fetch(freshUrl, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'BobaHire-Lead-Sync/1.0',
-    },
-    // Don't cache so we get live updates
-    cache: 'no-store',
-  });
+  const urlsToTry =
+    exportInfo.candidateUrls && exportInfo.candidateUrls.length > 0
+      ? exportInfo.candidateUrls
+      : [exportInfo.exportUrl];
 
-  if (!res.ok) {
-    if (res.status === 401 || res.status === 403 || res.redirected) {
-      throw new Error(
-        'Cannot access the Google Sheet. Please ensure sharing is set to "Anyone with the link can view".'
-      );
+  let lastStatus: number | null = null;
+  let lastErrorMsg = '';
+  let csvText = '';
+  let fetchSucceeded = false;
+
+  for (const targetUrl of urlsToTry) {
+    try {
+      const sep = targetUrl.includes('?') ? '&' : '?';
+      const freshUrl = `${targetUrl}${sep}_ts=${Date.now()}`;
+
+      const res = await fetch(freshUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/csv,text/plain,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        cache: 'no-store',
+        redirect: 'follow',
+      });
+
+      lastStatus = res.status;
+
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          lastErrorMsg =
+            'Cannot access the Google Sheet. Please ensure sharing is set to "Anyone with the link can view".';
+        } else if (res.status === 400) {
+          lastErrorMsg =
+            'Google Sheets responded with error code 400 (Bad Request). Please check that the sheet link is valid and the selected tab exists.';
+        } else if (res.status === 404) {
+          lastErrorMsg =
+            'Google Sheet not found (404). Please verify that the sheet ID is correct and the spreadsheet has not been deleted.';
+        } else {
+          lastErrorMsg = `Google Sheets responded with error code: ${res.status}`;
+        }
+        continue;
+      }
+
+      const text = await res.text();
+
+      // If redirected to Google accounts login page
+      if (
+        text.includes('accounts.google.com') &&
+        (text.includes('ServiceLogin') || text.includes('Sign in') || text.includes('identifier'))
+      ) {
+        lastErrorMsg =
+          'Google Sheet requires login. Please click "Share" in Google Sheets and select "Anyone with the link can view".';
+        continue;
+      }
+
+      // If Google Docs returned an HTML error page instead of tabular CSV content
+      if (
+        text.includes('<!DOCTYPE html>') &&
+        (text.includes('Google Docs - Error') ||
+          text.includes('Error 400') ||
+          text.includes("We're sorry...") ||
+          text.includes('Page Not Found'))
+      ) {
+        lastErrorMsg =
+          'Google Sheets returned an error page. Please ensure the link is public and the sheet exists.';
+        continue;
+      }
+
+      // Valid CSV text obtained
+      csvText = text;
+      fetchSucceeded = true;
+      break;
+    } catch (err: any) {
+      lastErrorMsg = err?.message || 'Network error fetching Google Sheet';
     }
-    throw new Error(`Google Sheets responded with error code: ${res.status}`);
   }
 
-  const csvText = await res.text();
-
-  // If redirected to a Google accounts login HTML page
-  if (csvText.includes('<!DOCTYPE html>') && csvText.includes('accounts.google.com')) {
+  if (!fetchSucceeded) {
+    if (lastStatus === 400) {
+      throw new Error(
+        'Google Sheets responded with error code 400. Please ensure the Google Sheet link is correct, the tab exists, and sharing is set to "Anyone with the link can view".'
+      );
+    }
     throw new Error(
-      'Google Sheet requires login. Please click "Share" in Google Sheets and select "Anyone with the link can view".'
+      lastErrorMsg ||
+        'Cannot access the Google Sheet. Please ensure sharing is set to "Anyone with the link can view".'
     );
   }
 
